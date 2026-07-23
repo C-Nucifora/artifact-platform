@@ -1,0 +1,47 @@
+"""Environment-driven configuration."""
+
+import logging
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+DEFAULT_ARTIFACTS_DIR = "/artifacts"
+DEFAULT_OUTPUT_DIR = "/data"
+DEFAULT_INTERVAL = 120.0
+DEFAULT_FETCH_TIMEOUT = 5.0
+DEFAULT_SOCKET = "/var/run/tailscale/tailscaled.sock"
+
+
+def _positive_float(env: Mapping[str, str], key: str, default: float) -> float:
+    raw = env.get(key)
+    if raw is None:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        value = -1.0
+    if value <= 0:
+        log.warning("%s=%r is not a positive number; using default %s", key, raw, default)
+        return default
+    return value
+
+
+@dataclass(frozen=True)
+class Config:
+    artifacts_dir: Path
+    output_dir: Path
+    interval: float
+    fetch_timeout: float
+    socket_path: str
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str]) -> "Config":
+        return cls(
+            artifacts_dir=Path(env.get("DISCOVERY_ARTIFACTS_DIR", DEFAULT_ARTIFACTS_DIR)),
+            output_dir=Path(env.get("DISCOVERY_OUTPUT_DIR", DEFAULT_OUTPUT_DIR)),
+            interval=_positive_float(env, "DISCOVERY_INTERVAL", DEFAULT_INTERVAL),
+            fetch_timeout=_positive_float(env, "DISCOVERY_FETCH_TIMEOUT", DEFAULT_FETCH_TIMEOUT),
+            socket_path=env.get("TS_SOCKET", DEFAULT_SOCKET),
+        )

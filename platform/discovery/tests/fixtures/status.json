@@ -1,0 +1,40 @@
+{
+  "Version": "1.86.2",
+  "TUN": true,
+  "BackendState": "Running",
+  "Self": {
+    "ID": "1111111111111111",
+    "PublicKey": "nodekey:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "HostName": "studio",
+    "DNSName": "studio.tail1234.ts.net.",
+    "OS": "linux",
+    "TailscaleIPs": ["100.64.0.1", "fd7a:115c:a1e0::1"],
+    "Online": true
+  },
+  "Peer": {
+    "nodekey:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {
+      "ID": "2222222222222222",
+      "HostName": "pi",
+      "DNSName": "pi.tail1234.ts.net.",
+      "OS": "linux",
+      "TailscaleIPs": ["100.64.0.2", "fd7a:115c:a1e0::2"],
+      "Online": true
+    },
+    "nodekey:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": {
+      "ID": "3333333333333333",
+      "HostName": "laptop",
+      "DNSName": "laptop.tail1234.ts.net.",
+      "OS": "macOS",
+      "TailscaleIPs": ["100.64.0.3"],
+      "Online": false
+    },
+    "nodekey:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd": {
+      "ID": "4444444444444444",
+      "HostName": "phone",
+      "DNSName": "",
+      "OS": "iOS",
+      "TailscaleIPs": ["100.64.0.4"],
+      "Online": true
+    }
+  }
+}
