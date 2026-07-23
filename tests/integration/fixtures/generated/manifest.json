@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "device": {
+    "hostname": "testhost",
+    "dns_name": "testhost.tail1234.ts.net",
+    "url": "https://testhost.tail1234.ts.net"
+  },
+  "artifacts": [
+    {
+      "slug": "demo",
+      "title": "Demo",
+      "description": "Integration test fixture",
+      "path": "/artifacts/demo/"
+    },
+    {
+      "slug": "no-meta",
+      "title": "no-meta",
+      "description": "",
+      "path": "/artifacts/no-meta/"
+    }
+  ],
+  "generated_at": "2026-01-01T00:00:00+00:00"
+}

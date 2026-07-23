@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "peers": [
+    {
+      "hostname": "otherbox",
+      "dns_name": "otherbox.tail1234.ts.net",
+      "url": "https://otherbox.tail1234.ts.net",
+      "artifacts": [
+        {
+          "slug": "remote-thing",
+          "title": "Remote Thing",
+          "description": "Hosted elsewhere",
+          "path": "/artifacts/remote-thing/"
+        }
+      ]
+    }
+  ],
+  "generated_at": "2026-01-01T00:00:00+00:00"
+}

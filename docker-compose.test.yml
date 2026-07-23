@@ -1,0 +1,22 @@
+# Integration-test stack: the real Caddyfile and site, fixture content, no
+# Tailscale. Run with:
+#   docker compose -f docker-compose.test.yml up -d --wait
+#   uv run --project platform/discovery --group dev pytest tests/integration
+#   docker compose -f docker-compose.test.yml down -v
+name: artifact-platform-test
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:${ARTIFACT_TEST_PORT:-8480}:80"
+    volumes:
+      - ./platform/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./platform/site:/srv/site:ro
+      - ./tests/integration/fixtures/artifacts:/srv/artifacts:ro
+      - ./tests/integration/fixtures/generated:/generated:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O/dev/null", "http://127.0.0.1:80/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
