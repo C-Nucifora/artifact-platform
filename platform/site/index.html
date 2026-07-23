@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artifacts</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --card: #ffffff;
+    --ink: #1c1b1a;
+    --muted: #6f6b66;
+    --line: #e4e1dc;
+    --accent: #0a7ea4;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --card: #201f26;
+      --ink: #eceae7;
+      --muted: #9a968f;
+      --line: #322f3a;
+      --accent: #58b7d6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  header { margin-bottom: 2.5rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .device-name { color: var(--muted); font-size: 0.95rem; margin: 0; overflow-wrap: anywhere; }
+  h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin: 2.5rem 0 0.75rem;
+  }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .card {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s ease;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .title { font-weight: 600; }
+  .card .desc { color: var(--muted); font-size: 0.9rem; margin-top: 0.1rem; }
+  .peer { margin-bottom: 1.4rem; }
+  .peer-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem; overflow-wrap: anywhere; }
+  .peer-name a { color: var(--accent); text-decoration: none; }
+  .peer-name a:hover { text-decoration: underline; }
+  .empty {
+    color: var(--muted);
+    background: var(--card);
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    font-size: 0.95rem;
+  }
+  code {
+    font: 0.85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--line);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Artifacts</h1>
+    <p class="device-name" id="device-name">&nbsp;</p>
+  </header>
+
+  <section>
+    <h2>On this device</h2>
+    <div id="local"><p class="empty">Loading…</p></div>
+  </section>
+
+  <section>
+    <h2>Other devices on the tailnet</h2>
+    <div id="peers"><p class="empty">Loading…</p></div>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script>
+  "use strict";
+
+  async function fetchJson(url) {
+    try {
+      const res = await fetch(url, { cache: "no-cache" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function emptyNote(html) {
+    const p = el("p", "empty");
+    p.append(...html);
+    return p;
+  }
+
+  function artifactCard(artifact, baseUrl) {
+    const slug = typeof artifact.slug === "string" ? artifact.slug : "";
+    const path = typeof artifact.path === "string" ? artifact.path : `/artifacts/${slug}/`;
+    const card = el("a", "card");
+    card.href = baseUrl ? baseUrl + path : path;
+    card.append(el("div", "title", artifact.title || slug || "untitled"));
+    if (artifact.description) card.append(el("div", "desc", artifact.description));
+    return card;
+  }
+
+  function buildList(artifacts, baseUrl) {
+    const list = el("ul");
+    for (const artifact of artifacts) {
+      const item = el("li");
+      item.append(artifactCard(artifact, baseUrl));
+      list.append(item);
+    }
+    return list;
+  }
+
+  function renderLocal(manifest) {
+    const container = document.getElementById("local");
+    const artifacts = manifest && Array.isArray(manifest.artifacts) ? manifest.artifacts : [];
+    if (artifacts.length === 0) {
+      const code = el("code", null, "scripts/new-artifact.sh <slug>");
+      container.replaceChildren(
+        emptyNote(["Nothing hosted here yet. Scaffold something with ", code, "."])
+      );
+      return;
+    }
+    container.replaceChildren(buildList(artifacts, ""));
+  }
+
+  function renderDevice(manifest) {
+    const device = (manifest && manifest.device) || {};
+    if (device.dns_name) {
+      document.getElementById("device-name").textContent = device.dns_name;
+    }
+  }
+
+  function renderPeers(doc) {
+    const container = document.getElementById("peers");
+    const peers = doc && Array.isArray(doc.peers) ? doc.peers : [];
+    if (peers.length === 0) {
+      container.replaceChildren(
+        emptyNote(["No other devices found yet. Peers appear here once discovery has run."])
+      );
+      return;
+    }
+    const wrap = el("div");
+    for (const peer of peers) {
+      const section = el("div", "peer");
+      const name = el("div", "peer-name");
+      const link = el("a", null, peer.hostname || peer.dns_name || "unknown device");
+      if (peer.url) link.href = peer.url;
+      name.append(link);
+      section.append(name);
+      const artifacts = Array.isArray(peer.artifacts) ? peer.artifacts : [];
+      if (artifacts.length === 0) {
+        section.append(emptyNote(["Nothing hosted on this device."]));
+      } else {
+        section.append(buildList(artifacts, peer.url || ""));
+      }
+      wrap.append(section);
+    }
+    container.replaceChildren(wrap);
+  }
+
+  async function load() {
+    const [manifest, peers] = await Promise.all([
+      fetchJson("/manifest.json"),
+      fetchJson("/peers.json"),
+    ]);
+    renderDevice(manifest);
+    renderLocal(manifest);
+    renderPeers(peers);
+    if (peers && peers.generated_at) {
+      document.getElementById("footer").textContent =
+        `Last discovery pass: ${peers.generated_at}`;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

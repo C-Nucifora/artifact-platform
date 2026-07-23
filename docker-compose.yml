@@ -1,0 +1,57 @@
+name: artifact-platform
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: ${TS_HOSTNAME:-artifacts}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+      TS_AUTH_ONCE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - tailscale-socket:/var/run/tailscale
+      # Mounted as a directory (not a single file) so containerboot can watch
+      # serve.json for changes.
+      - ./platform/tailscale:/config:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    volumes:
+      - ./platform/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./platform/site:/srv/site:ro
+      - ./artifacts:/srv/artifacts:ro
+      # /data is Caddy's own storage dir, so generated JSON lives at /generated.
+      - site-data:/generated:ro
+    restart: unless-stopped
+
+  discovery:
+    build: ./platform/discovery
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    environment:
+      DISCOVERY_INTERVAL: ${DISCOVERY_INTERVAL:-120}
+      DISCOVERY_FETCH_TIMEOUT: ${DISCOVERY_FETCH_TIMEOUT:-5}
+      DISCOVERY_LOG_LEVEL: ${DISCOVERY_LOG_LEVEL:-INFO}
+    volumes:
+      - ./artifacts:/artifacts:ro
+      - site-data:/data
+      - tailscale-socket:/var/run/tailscale
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+  tailscale-socket:
+  site-data:

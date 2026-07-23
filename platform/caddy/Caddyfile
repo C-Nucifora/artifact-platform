@@ -1,0 +1,32 @@
+# Plain HTTP on :80 — the Tailscale sidecar terminates HTTPS and proxies here.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	encode zstd gzip
+
+	header /manifest.json Cache-Control "no-cache"
+	header /peers.json Cache-Control "no-cache"
+
+	handle /manifest.json {
+		root * /generated
+		file_server
+	}
+
+	handle /peers.json {
+		root * /generated
+		file_server
+	}
+
+	handle /artifacts/* {
+		root * /srv
+		file_server browse
+	}
+
+	handle {
+		root * /srv/site
+		file_server
+	}
+}
