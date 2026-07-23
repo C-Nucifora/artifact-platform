@@ -3,6 +3,10 @@
 # Usage: scripts/new-artifact.sh <slug> ["Title"] ["Description"]
 set -eu
 
+# Character ranges in the slug check below are locale-dependent otherwise.
+LC_ALL=C
+export LC_ALL
+
 usage() {
     printf 'usage: %s <slug> ["Title"] ["Description"]\n' "$0" >&2
     printf '  slug: lowercase letters, digits, and inner hyphens (e.g. world-clock)\n' >&2
@@ -29,6 +33,11 @@ json_escape() {
     printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
+# & must be replaced first — it is the substitution operator in sed's RHS.
+html_escape() {
+    printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
 repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 target="$repo_root/artifacts/$slug"
 
@@ -41,6 +50,7 @@ mkdir -p "$target"
 
 esc_title=$(json_escape "$title")
 esc_description=$(json_escape "$description")
+html_title=$(html_escape "$title")
 
 cat > "$target/meta.json" <<EOF
 {
@@ -55,7 +65,7 @@ cat > "$target/index.html" <<EOF
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>$title</title>
+<title>$html_title</title>
 <style>
   body {
     margin: 0;
@@ -75,7 +85,7 @@ cat > "$target/index.html" <<EOF
 </head>
 <body>
 <main>
-  <h1>$title</h1>
+  <h1>$html_title</h1>
   <p>Replace this placeholder with the real thing.</p>
 </main>
 </body>

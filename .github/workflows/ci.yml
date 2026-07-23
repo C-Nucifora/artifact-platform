@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# A PR branch in this repo triggers both events; keep only the newest run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest

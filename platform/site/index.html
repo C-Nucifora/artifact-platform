@@ -123,11 +123,16 @@
     return p;
   }
 
+  // Peer data is written by other devices, so only render paths we recognize.
+  // Discovery already rebuilds these, but the page is publicly reachable.
+  const SAFE_PATH = /^\/artifacts\/[a-z0-9][a-z0-9-]*\/$/;
+
   function artifactCard(artifact, baseUrl) {
     const slug = typeof artifact.slug === "string" ? artifact.slug : "";
-    const path = typeof artifact.path === "string" ? artifact.path : `/artifacts/${slug}/`;
-    const card = el("a", "card");
-    card.href = baseUrl ? baseUrl + path : path;
+    const raw = typeof artifact.path === "string" ? artifact.path : `/artifacts/${slug}/`;
+    const path = SAFE_PATH.test(raw) ? raw : null;
+    const card = el(path ? "a" : "div", "card");
+    if (path) card.href = baseUrl + path;
     card.append(el("div", "title", artifact.title || slug || "untitled"));
     if (artifact.description) card.append(el("div", "desc", artifact.description));
     return card;
@@ -136,6 +141,7 @@
   function buildList(artifacts, baseUrl) {
     const list = el("ul");
     for (const artifact of artifacts) {
+      if (!artifact || typeof artifact !== "object") continue;
       const item = el("li");
       item.append(artifactCard(artifact, baseUrl));
       list.append(item);
@@ -174,17 +180,19 @@
     }
     const wrap = el("div");
     for (const peer of peers) {
+      if (!peer || typeof peer !== "object") continue;
+      const url = typeof peer.url === "string" && peer.url.startsWith("https://") ? peer.url : "";
       const section = el("div", "peer");
       const name = el("div", "peer-name");
       const link = el("a", null, peer.hostname || peer.dns_name || "unknown device");
-      if (peer.url) link.href = peer.url;
+      if (url) link.href = url;
       name.append(link);
       section.append(name);
       const artifacts = Array.isArray(peer.artifacts) ? peer.artifacts : [];
       if (artifacts.length === 0) {
         section.append(emptyNote(["Nothing hosted on this device."]));
       } else {
-        section.append(buildList(artifacts, peer.url || ""));
+        section.append(buildList(artifacts, url));
       }
       wrap.append(section);
     }

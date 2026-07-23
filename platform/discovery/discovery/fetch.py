@@ -9,13 +9,24 @@ import json
 import logging
 import socket
 import ssl
+import time
 
 from discovery.tailnet import Device
 
 log = logging.getLogger(__name__)
 
 MAX_BODY_BYTES = 1_000_000
+CHUNK_BYTES = 65_536
+# Socket timeouts reset on every recv, so a peer trickling bytes could hold a
+# thread open indefinitely. Cap the whole exchange at this multiple instead.
+TOTAL_BUDGET_FACTOR = 3
 USER_AGENT = "artifact-platform-discovery/1"
+
+
+def _reject_constant(name):
+    # json.loads accepts NaN/Infinity by default; re-emitting those produces a
+    # peers.json that no browser's JSON.parse will accept.
+    raise ValueError(f"non-standard JSON constant: {name}")
 
 
 class SNIHTTPSConnection(http.client.HTTPSConnection):
@@ -30,6 +41,21 @@ class SNIHTTPSConnection(http.client.HTTPSConnection):
         self.sock = self._context.wrap_socket(sock, server_hostname=self._server_hostname)
 
 
+def _read_body(response, deadline_at: float) -> bytes:
+    """Read up to MAX_BODY_BYTES + 1 bytes, giving up if the deadline passes."""
+    chunks: list[bytes] = []
+    total = 0
+    while total <= MAX_BODY_BYTES:
+        if time.monotonic() > deadline_at:
+            raise TimeoutError("body read exceeded deadline")
+        chunk = response.read(min(CHUNK_BYTES, MAX_BODY_BYTES + 1 - total))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+
 def fetch_manifest(
     device: Device,
     timeout: float = 5.0,
@@ -42,6 +68,7 @@ def fetch_manifest(
     the platform are expected, not exceptional.
     """
     host = device.ips[0] if device.ips else device.dns_name
+    deadline_at = time.monotonic() + timeout * TOTAL_BUDGET_FACTOR
     conn = None
     try:
         conn = connection_factory(host=host, server_hostname=device.dns_name, timeout=timeout)
@@ -58,16 +85,16 @@ def fetch_manifest(
         if response.status != 200:
             log.debug("%s: /manifest.json returned %s", device.dns_name, response.status)
             return None
-        body = response.read(MAX_BODY_BYTES + 1)
+        body = _read_body(response, deadline_at)
         if len(body) > MAX_BODY_BYTES:
             log.debug("%s: manifest larger than %d bytes", device.dns_name, MAX_BODY_BYTES)
             return None
-        manifest = json.loads(body)
+        manifest = json.loads(body, parse_constant=_reject_constant)
     except (
         OSError,
         ssl.SSLError,
         http.client.HTTPException,
-        json.JSONDecodeError,
+        ValueError,  # covers JSONDecodeError and rejected NaN/Infinity constants
         UnicodeDecodeError,
     ) as exc:
         log.debug("%s: fetch failed: %s", device.dns_name, exc)

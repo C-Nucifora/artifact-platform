@@ -1,6 +1,7 @@
 """Aggregate peer manifests into peers.json."""
 
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from discovery.tailnet import Device
@@ -9,6 +10,42 @@ from discovery.util import utc_now_iso
 log = logging.getLogger(__name__)
 
 MAX_WORKERS = 8
+MAX_ARTIFACTS_PER_PEER = 200
+MAX_TEXT_CHARS = 300
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+def _sanitize_artifacts(raw: object) -> list[dict]:
+    """Reduce a peer's artifact list to entries we're willing to render.
+
+    A peer controls everything in its own manifest, and our index page turns
+    these into links on a publicly reachable site. So the slug must look like a
+    slug, text is truncated, and `path` is rebuilt here rather than trusted —
+    a peer-supplied path like "@evil.example" would otherwise concatenate into
+    a URL pointing at someone else's host.
+    """
+    if not isinstance(raw, list):
+        return []
+    entries = []
+    for entry in raw[:MAX_ARTIFACTS_PER_PEER]:
+        if not isinstance(entry, dict):
+            continue
+        slug = entry.get("slug")
+        if not isinstance(slug, str) or not SLUG_RE.match(slug):
+            continue
+        title = entry.get("title")
+        description = entry.get("description")
+        entries.append(
+            {
+                "slug": slug,
+                "title": (title if isinstance(title, str) else slug)[:MAX_TEXT_CHARS],
+                "description": (description if isinstance(description, str) else "")[
+                    :MAX_TEXT_CHARS
+                ],
+                "path": f"/artifacts/{slug}/",
+            }
+        )
+    return entries
 
 
 def build_peers(
@@ -56,7 +93,7 @@ def build_peers(
                 "hostname": device.hostname,
                 "dns_name": device.dns_name,
                 "url": f"https://{device.dns_name}",
-                "artifacts": manifest.get("artifacts") or [],
+                "artifacts": _sanitize_artifacts(manifest.get("artifacts")),
             }
             for device, manifest in results
         ],

@@ -28,6 +28,21 @@ def get(path):
         return err.code, err.headers, err.read()
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def get_no_redirect(path):
+    """Same as get(), but surfaces the redirect itself instead of following it."""
+    opener = urllib.request.build_opener(NoRedirect)
+    try:
+        with opener.open(BASE_URL + path, timeout=10) as response:
+            return response.status, response.headers, response.read()
+    except urllib.error.HTTPError as err:
+        return err.code, err.headers, err.read()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def wait_for_stack():
     deadline = time.monotonic() + 30
@@ -70,6 +85,8 @@ def test_peers_json():
     assert "no-cache" in (headers.get("Cache-Control") or "")
     peers = json.loads(body)
     assert peers["peers"][0]["dns_name"] == "otherbox.tail1234.ts.net"
+    # a peer hosting nothing is normal and must not break the payload
+    assert peers["peers"][1]["artifacts"] == []
 
 
 def test_artifact_with_index_served():
@@ -80,10 +97,14 @@ def test_artifact_with_index_served():
 
 
 def test_artifact_without_trailing_slash_redirects():
-    status, headers, _ = get("/artifacts/demo")
-    # file_server canonicalizes directory URLs with a redirect
-    assert status == 200  # urllib follows the redirect
-    _, _, body = get("/artifacts/demo")
+    status, headers, _ = get_no_redirect("/artifacts/demo")
+    assert status in (301, 308)
+    assert headers.get("Location", "").endswith("/artifacts/demo/")
+
+
+def test_artifact_without_trailing_slash_resolves_when_followed():
+    status, _, body = get("/artifacts/demo")
+    assert status == 200
     assert b"demo artifact fixture" in body
 
 

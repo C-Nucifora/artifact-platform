@@ -7,6 +7,9 @@ services:
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
+      # containerboot defaults the LocalAPI socket to /tmp/tailscaled.sock;
+      # pin it inside the shared volume so the discovery container can reach it.
+      TS_SOCKET: /var/run/tailscale/tailscaled.sock
       TS_USERSPACE: "false"
       TS_AUTH_ONCE: "true"
       TS_SERVE_CONFIG: /config/serve.json

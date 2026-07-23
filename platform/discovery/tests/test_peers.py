@@ -14,7 +14,14 @@ def manifest_for(name):
     return {
         "version": 1,
         "device": {"hostname": name},
-        "artifacts": [{"slug": f"{name}-app", "title": name, "description": "", "path": "/x/"}],
+        "artifacts": [
+            {
+                "slug": f"{name}-app",
+                "title": name,
+                "description": "",
+                "path": f"/artifacts/{name}-app/",
+            }
+        ],
     }
 
 
@@ -86,3 +93,71 @@ def test_artifacts_missing_from_manifest_defaults_to_empty():
     # build_peers trusts fetch_manifest's validation, but degrade gracefully anyway
     doc = build_peers([dev("odd")], fetcher=lambda d, t: {"version": 1}, timeout=1.0)
     assert doc["peers"][0]["artifacts"] == []
+
+
+def peer_serving(artifacts):
+    return build_peers(
+        [dev("hostile")],
+        fetcher=lambda d, t: {"version": 1, "artifacts": artifacts},
+        timeout=1.0,
+    )["peers"][0]["artifacts"]
+
+
+def test_peer_supplied_path_is_never_trusted():
+    # "@evil.example" concatenated onto https://host would resolve to evil.example
+    entries = peer_serving([{"slug": "ok", "title": "OK", "path": "@evil.example"}])
+    assert entries[0]["path"] == "/artifacts/ok/"
+
+
+def test_entries_with_bad_slugs_dropped():
+    entries = peer_serving(
+        [
+            {"slug": "../../etc/passwd"},
+            {"slug": "Has Spaces"},
+            {"slug": "UPPER"},
+            {"slug": "-leading-hyphen"},
+            {"slug": ""},
+            {"slug": "good-one"},
+        ]
+    )
+    assert [e["slug"] for e in entries] == ["good-one"]
+
+
+def test_non_dict_entries_dropped():
+    entries = peer_serving([None, "a string", 42, ["nested"], {"slug": "survivor"}])
+    assert [e["slug"] for e in entries] == ["survivor"]
+
+
+def test_missing_slug_dropped():
+    assert peer_serving([{"title": "No slug here"}]) == []
+
+
+def test_non_string_text_falls_back():
+    entries = peer_serving([{"slug": "thing", "title": 42, "description": ["x"]}])
+    assert entries[0]["title"] == "thing"
+    assert entries[0]["description"] == ""
+
+
+def test_long_text_truncated():
+    entries = peer_serving([{"slug": "thing", "title": "T" * 5000, "description": "D" * 5000}])
+    assert len(entries[0]["title"]) == 300
+    assert len(entries[0]["description"]) == 300
+
+
+def test_artifact_count_capped():
+    entries = peer_serving([{"slug": f"a{i}"} for i in range(500)])
+    assert len(entries) == 200
+
+
+def test_artifacts_not_a_list_yields_empty():
+    assert peer_serving("not a list") == []
+
+
+def test_sanitized_entry_shape_is_exact():
+    entries = peer_serving([{"slug": "x", "title": "X", "description": "D", "evil": "<script>"}])
+    assert entries[0] == {
+        "slug": "x",
+        "title": "X",
+        "description": "D",
+        "path": "/artifacts/x/",
+    }

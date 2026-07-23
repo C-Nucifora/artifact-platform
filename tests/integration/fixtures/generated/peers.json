@@ -13,6 +13,12 @@
           "path": "/artifacts/remote-thing/"
         }
       ]
+    },
+    {
+      "hostname": "emptybox",
+      "dns_name": "emptybox.tail1234.ts.net",
+      "url": "https://emptybox.tail1234.ts.net",
+      "artifacts": []
     }
   ],
   "generated_at": "2026-01-01T00:00:00+00:00"

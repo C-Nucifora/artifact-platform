@@ -42,9 +42,16 @@ Three services share the Tailscale sidecar's network namespace
   2. Asks the local tailscaled for online peers (`tailscale status --json`).
   3. Fetches `https://<peer>/manifest.json` from each — by Tailscale IP, with
      TLS validated against the peer's MagicDNS name, under a hard deadline.
-  4. Writes every valid response into `peers.json`. Peers that time out, 404,
-     or return garbage are skipped silently: they're just not running the
-     platform, which is expected, not an error.
+  4. Sanitizes and writes every valid response into `peers.json`. Peers that
+     time out, 404, or return garbage are skipped silently: they're just not
+     running the platform, which is expected, not an error.
+
+A peer's manifest is data from another machine, and this device republishes it
+on a page anyone on the internet can load. So peer entries are filtered to a
+known shape before they're written: slugs must look like slugs, text is
+truncated, and each link target is rebuilt locally as `/artifacts/<slug>/`
+rather than taken from the peer — otherwise a peer-supplied path like
+`@evil.example` would concatenate into a link pointing at someone else's host.
 
 The index page (`/`) renders both JSON files client-side: "on this device" and
 "other devices on the tailnet", with friendly empty states on first boot.
@@ -135,7 +142,7 @@ pull request.
   against artifact trees with present/absent/partial/malformed `meta.json`,
   `tailscale status` parsing (offline peers, missing DNS names, CLI failures),
   peer aggregation (timeouts, 404s, garbage responses, fetchers that raise or
-  hang), and atomic file writes.
+  hang), sanitization of hostile peer manifests, and atomic file writes.
 - **Integration tests** bring up the real Caddyfile and index site in Docker
   with fixture content and assert status codes, content types, caching
   headers, directory listings, and 404 behavior over real HTTP.
@@ -179,6 +186,11 @@ artifacts/                # your hosted content (gitignored)
   `DISCOVERY_LOG_LEVEL=DEBUG` to see why individual peers were skipped).
 - **Device shows up as `artifacts-1`** — hostname collision on the tailnet;
   set a unique `TS_HOSTNAME` in `.env`.
+- **Everything breaks after the sidecar restarts** — `caddy` and `discovery`
+  join the sidecar's network namespace, and Docker does not re-attach them
+  when that container is replaced. After any `docker compose up -d` that
+  recreates `tailscale`, restart the other two: `docker compose restart caddy
+  discovery`.
 - **Wiping a device's identity** — `docker compose down -v` removes the
   Tailscale state volume; the next `up` joins as a fresh node (needs a valid
   auth key in `.env`).

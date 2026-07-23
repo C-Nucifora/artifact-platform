@@ -1,6 +1,7 @@
 """Tests for fetching a peer's /manifest.json over HTTPS."""
 
 import json
+import time
 
 from discovery.fetch import MAX_BODY_BYTES, fetch_manifest
 from discovery.tailnet import Device
@@ -105,6 +106,33 @@ def test_oversized_body_returns_none():
     huge = b'{"artifacts": ["' + b"x" * MAX_BODY_BYTES + b'"]}'
     conn = FakeConnection(FakeResponse(200, huge))
     assert fetch_manifest(PEER, timeout=2.0, connection_factory=conn.factory()) is None
+
+
+def test_nan_constant_rejected():
+    # json.loads accepts NaN by default; re-emitting it would produce a
+    # peers.json that browsers refuse to parse.
+    conn = FakeConnection(FakeResponse(200, b'{"artifacts": [{"title": NaN}]}'))
+    assert fetch_manifest(PEER, timeout=2.0, connection_factory=conn.factory()) is None
+
+
+def test_infinity_constant_rejected():
+    conn = FakeConnection(FakeResponse(200, b'{"artifacts": [{"title": Infinity}]}'))
+    assert fetch_manifest(PEER, timeout=2.0, connection_factory=conn.factory()) is None
+
+
+def test_trickling_body_gives_up_at_deadline():
+    class TricklingResponse:
+        status = 200
+
+        def read(self, amt=None):
+            time.sleep(0.05)
+            return b"x"  # never terminates, never exceeds the size cap quickly
+
+    conn = FakeConnection(TricklingResponse())
+    start = time.monotonic()
+    assert fetch_manifest(PEER, timeout=0.2, connection_factory=conn.factory()) is None
+    assert time.monotonic() - start < 5.0
+    assert conn.closed
 
 
 def test_connection_error_returns_none():
