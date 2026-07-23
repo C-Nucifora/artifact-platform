@@ -1,0 +1,19 @@
+# Hosted content lives on each device, not in this repo
+artifacts/*
+!artifacts/.gitkeep
+
+# Secrets — only .env.example is committed
+.env
+
+# Runtime output (manifest.json / peers.json are generated)
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
