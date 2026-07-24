@@ -75,6 +75,15 @@ scripts/new-artifact.sh world-clock "World Clock" "Timezones at a glance"
 Dropping a folder in is enough — Caddy serves it immediately and the next
 discovery pass adds it to `manifest.json`. No restarts.
 
+### Templates
+
+`templates/` holds ready-to-copy starting points that share one house style
+(the UQR palette, dark-first, fully self-contained): `tool/` (an interactive
+widget), `dashboard/` (a grid of stat tiles), and `document/` (a readable
+article). [`ARTIFACTS.md`](ARTIFACTS.md) is the authoring contract — the design
+tokens, the hard rules, and which template to start from — written so an LLM
+(or a person) produces artifacts that drop straight in and look native.
+
 ## Standing up a device
 
 One-time tailnet prep (admin console):
@@ -172,6 +181,8 @@ platform/
 ├── discovery/            # Python discovery service + unit tests
 └── site/index.html       # the index page
 scripts/new-artifact.sh   # scaffold a new artifact
+ARTIFACTS.md              # authoring contract for artifacts (LLM-facing)
+templates/                # reusable per-type starting points + design tokens
 tests/integration/        # HTTP tests + fixtures for the test stack
 artifacts/                # your hosted content (gitignored)
 ```

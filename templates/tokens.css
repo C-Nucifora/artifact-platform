@@ -1,0 +1,37 @@
+/* UQ Racing design tokens — ripped from uqracing.com (2026).
+ *
+ * Every artifact inlines these in its own <style> block (see the templates).
+ * This file is the single reference so the look stays consistent; if you
+ * restyle the system, change it here and re-copy into the templates.
+ *
+ * The brand font is Akzidenz-Grotesk (licensed). Artifacts must be
+ * self-contained (no external font requests), so we fall back to a system
+ * grotesque. If you have a licensed webfont, embed it as a data: URI. */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg:          #201b26;                 /* page background            */
+  --surface:     rgba(255, 255, 255, 0.024); /* card fill (base)        */
+  --surface-2:   rgba(255, 255, 255, 0.04);  /* inset / icon box        */
+  --line:        rgba(255, 255, 255, 0.12);  /* hairline borders        */
+
+  /* Ink */
+  --ink:         #ffffff;                 /* primary text               */
+  --muted:       rgba(255, 255, 255, 0.60); /* secondary text           */
+
+  /* Brand */
+  --accent:      #d7df23;                 /* signature lime-yellow      */
+  --purple:      #5c13aa;                 /* primary action             */
+  --purple-deep: #3b1f70;                 /* deep purple                */
+
+  /* Shape & depth */
+  --radius:      16px;
+  --radius-sm:   12px;
+  --pill:        9999px;
+  --shadow:      0 18px 44px rgba(0, 0, 0, 0.3);
+
+  /* Type */
+  --font: "Helvetica Neue", Helvetica, Arial, "Inter", system-ui, sans-serif;
+}

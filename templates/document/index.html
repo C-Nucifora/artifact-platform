@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- DOCUMENT TEMPLATE — a readable article / report / changelog column.
+     Static content. Replace the body; keep the structure and classes. -->
+<title>Document Template</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#201b26; --surface:rgba(255,255,255,.024); --surface-2:rgba(255,255,255,.04);
+    --line:rgba(255,255,255,.12); --ink:#fff; --muted:rgba(255,255,255,.6);
+    --accent:#d7df23; --purple:#5c13aa; --purple-deep:#3b1f70;
+    --radius:16px; --pill:9999px; --shadow:0 18px 44px rgba(0,0,0,.3);
+    --font:"Helvetica Neue",Helvetica,Arial,"Inter",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.7 var(--font);-webkit-font-smoothing:antialiased}
+  main{max-width:42rem;margin:0 auto;padding:3.5rem 1.25rem 5rem}
+  .accent{color:var(--accent)}
+  h1{font-size:2.1rem;font-weight:700;letter-spacing:-.015em;margin:0 0 .4rem}
+  .lede{color:var(--muted);font-size:1.1rem;margin:0 0 2.5rem}
+  h2{font-size:1.15rem;font-weight:700;margin:2.5rem 0 .6rem;
+    padding-left:.7rem;border-left:3px solid var(--accent)}
+  p{margin:0 0 1rem}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(215,223,35,.4)}
+  a:hover{border-bottom-color:var(--accent)}
+  ul{margin:0 0 1rem;padding-left:1.2rem}
+  li{margin:.25rem 0}
+  code{font:.88em ui-monospace,"SF Mono",Menlo,monospace;
+    background:var(--surface-2);border:1px solid var(--line);
+    padding:.1em .4em;border-radius:6px}
+  .callout{background:linear-gradient(rgba(255,255,255,.06),var(--surface));
+    border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:1.1rem 1.25rem;margin:1.75rem 0}
+  .callout p:last-child{margin-bottom:0}
+  hr{border:0;border-top:1px solid var(--line);margin:2.5rem 0}
+  footer{color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+  <!-- TODO: title + one-line lede -->
+  <h1>Document <span class="accent">Template</span></h1>
+  <p class="lede">A readable column for reports, notes, or a changelog.</p>
+
+  <h2>Section heading</h2>
+  <p>Body copy sits in a comfortable measure. Emphasise with the brand accent
+    sparingly, and link like <a href="#">this</a>. Inline <code>code</code> gets
+    its own subtle chip.</p>
+
+  <div class="callout">
+    <p>Use a callout for the one thing a reader must not miss — a result, a
+      warning, a headline number.</p>
+  </div>
+
+  <h2>Another section</h2>
+  <ul>
+    <li>Keep lists tight and scannable.</li>
+    <li>One idea per line.</li>
+    <li>Let the dark surface do the work — restraint reads as premium.</li>
+  </ul>
+
+  <hr>
+  <footer>Replace this footer — attribution, date, or a link back.</footer>
+</main>
+</body>
+</html>
