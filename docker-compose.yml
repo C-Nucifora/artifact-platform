@@ -4,6 +4,14 @@ services:
   tailscale:
     image: tailscale/tailscale:stable
     hostname: ${TS_HOSTNAME:-artifacts}
+    # Caddy shares this container's network namespace (network_mode:
+    # service:tailscale below), so publishing a port here reaches Caddy
+    # directly on localhost — independent of Tailscale login/Funnel state.
+    # Bound to loopback only: this is a same-machine preview, not another
+    # public exposure. Lets you `open http://localhost:8765` immediately
+    # after `docker compose up -d`, before doing any Tailscale setup at all.
+    ports:
+      - "127.0.0.1:${LOCAL_PREVIEW_PORT:-8765}:80"
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale

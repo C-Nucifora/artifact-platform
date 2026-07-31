@@ -12,6 +12,21 @@ any other, and there is no peer list to maintain.
 This repo is the reusable scaffold (compose stack, configs, discovery code).
 Hosted content under `artifacts/` is deliberately **not** committed.
 
+## Just want to look at an artifact right now?
+
+You don't need a Tailscale account, an auth key, or anything else for this:
+
+```sh
+docker compose up -d
+open http://localhost:8765
+```
+
+That's Caddy on a loopback-only port — same content, same `/artifacts/<slug>/`
+paths, zero tailnet setup. Publishing to the tailnet (so other devices can
+reach it) or the internet (via Funnel, so anyone can) is a separate, optional
+step below — reach for it when you actually want to share something off this
+machine, not just to preview it.
+
 ## How it works
 
 ```mermaid
@@ -77,7 +92,21 @@ discovery pass adds it to `manifest.json`. No restarts.
 
 ## Standing up a device
 
-One-time tailnet prep (admin console):
+Publishing to the tailnet — beyond the localhost preview above — needs the
+device to join Tailscale. Two ways to do that, pick one:
+
+- **No auth key, approve interactively (fewest steps if you're doing this
+  once, by hand):** leave `TS_AUTHKEY` blank in `.env` (or skip `.env`
+  entirely — it's optional for this path) and run `docker compose up -d`.
+  Then `docker compose logs tailscale` and open the login link it prints; one
+  click approves the device. Nothing else to create or paste anywhere.
+- **Auth key (better for unattended/repeat setups, e.g. scripting multiple
+  devices):** create one at
+  <https://login.tailscale.com/admin/settings/keys> and paste it into
+  `TS_AUTHKEY` in `.env`.
+
+Either way, before the tailnet URL and Funnel work, one-time tailnet prep in
+the admin console:
 
 1. **Enable HTTPS certificates** and **MagicDNS** (DNS page).
 2. **Allow Funnel** in the tailnet policy file — the node needs the `funnel`
@@ -91,12 +120,11 @@ One-time tailnet prep (admin console):
 
    If you authenticate the container with a tagged key, target the tag
    (e.g. `"target": ["tag:artifacts"]`) instead of `autogroup:member`.
-3. Create an auth key: <https://login.tailscale.com/admin/settings/keys>.
 
 Per device:
 
 ```sh
-cp .env.example .env      # paste the auth key, pick a unique TS_HOSTNAME
+cp .env.example .env      # pick a unique TS_HOSTNAME; TS_AUTHKEY optional, see above
 docker compose up -d
 ```
 
@@ -117,8 +145,9 @@ All optional, via `.env` (see `.env.example`):
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `TS_AUTHKEY` | — | Tailscale auth key (required to join the tailnet) |
+| `TS_AUTHKEY` | — | Tailscale auth key. Optional — blank falls back to interactive login (see "Standing up a device") |
 | `TS_HOSTNAME` | `artifacts` | Device name → `https://<name>.<tailnet>.ts.net` |
+| `LOCAL_PREVIEW_PORT` | `8765` | Loopback-only port to Caddy — `http://localhost:<port>`, no Tailscale involved |
 | `DISCOVERY_INTERVAL` | `120` | Seconds between discovery passes |
 | `DISCOVERY_FETCH_TIMEOUT` | `5` | Per-peer fetch timeout in seconds |
 | `DISCOVERY_LOG_LEVEL` | `INFO` | Discovery log verbosity |
@@ -192,5 +221,9 @@ artifacts/                # your hosted content (gitignored)
   recreates `tailscale`, restart the other two: `docker compose restart caddy
   discovery`.
 - **Wiping a device's identity** — `docker compose down -v` removes the
-  Tailscale state volume; the next `up` joins as a fresh node (needs a valid
-  auth key in `.env`).
+  Tailscale state volume; the next `up` joins as a fresh node (needs either
+  `TS_AUTHKEY` set, or another interactive login approval — see "Standing up
+  a device").
+- **`docker compose up` fails to bind a port** — something else on the host is
+  already using `LOCAL_PREVIEW_PORT` (default 8765); set a different value in
+  `.env`.
