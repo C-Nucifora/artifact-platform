@@ -1,0 +1,30 @@
+services:
+  tailscale:
+    ports:
+      - "${SITE_HTTP_BIND:-0.0.0.0}:${SITE_HTTP_PORT:-80}:80"
+      - "${SITE_HTTPS_BIND:-0.0.0.0}:${SITE_HTTPS_PORT:-443}:443"
+
+  caddy:
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS to the public site hostname}
+      MANAGEMENT_API_TOKEN: ${MANAGEMENT_API_TOKEN:?Set MANAGEMENT_API_TOKEN}
+    volumes:
+      - ./platform/caddy/Caddyfile.sso:/etc/caddy/Caddyfile:ro
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    command:
+      - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+      - --allowed-group=${OIDC_ADMIN_GROUP:-artifact-platform-admins}
+    environment:
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?Set OIDC_ISSUER_URL}
+      OAUTH2_PROXY_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?Set OIDC_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OIDC_COOKIE_SECRET:?Set OIDC_COOKIE_SECRET}
+      OAUTH2_PROXY_REDIRECT_URL: https://${SITE_ADDRESS}/oauth2/callback
+    volumes:
+      - ./platform/oauth2-proxy/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
+    restart: unless-stopped

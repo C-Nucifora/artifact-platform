@@ -1,4 +1,4 @@
-.PHONY: lint unit build integration check
+.PHONY: lint unit build integration integration-sso ui check
 
 lint:
 	shellcheck scripts/*.sh
@@ -13,9 +13,19 @@ build:
 
 integration:
 	docker compose -f docker-compose.test.yml up -d --wait
-	uv run --project platform/discovery --group dev pytest tests/integration; \
+	uv run --project platform/discovery --group dev pytest tests/integration/test_http.py; \
 	status=$$?; \
 	docker compose -f docker-compose.test.yml down -v; \
 	exit $$status
 
-check: lint unit build integration
+integration-sso:
+	docker compose -f docker-compose.sso.test.yml up -d --wait
+	uv run --project platform/discovery --group dev pytest tests/integration/test_sso_http.py; \
+	status=$$?; \
+	docker compose -f docker-compose.sso.test.yml down -v; \
+	exit $$status
+
+ui:
+	npm test
+
+check: lint unit build integration integration-sso ui

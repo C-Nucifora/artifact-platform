@@ -1,0 +1,52 @@
+name: artifact-platform-sso-test
+
+services:
+  auth:
+    image: python:3.13-alpine
+    command: ["python", "/app/stub_auth.py"]
+    volumes:
+      - ./tests/integration/stub_auth.py:/app/stub_auth.py:ro
+
+  discovery:
+    build: ./platform/discovery
+    environment:
+      DISCOVERY_INTERVAL: 3600
+      MANAGEMENT_API_TOKEN: test-management-token
+    volumes:
+      - ./tests/integration/fixtures/artifacts:/artifacts:ro
+      - ./tests/integration/fixtures/config:/config
+      - site-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=2)"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      auth:
+        condition: service_started
+      discovery:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ARTIFACT_SSO_TEST_PORT:-8481}:80"
+    environment:
+      SITE_ADDRESS: :80
+      OAUTH2_PROXY_UPSTREAM: auth:4180
+      MANAGEMENT_UPSTREAM: discovery:8090
+      MANAGEMENT_API_TOKEN: test-management-token
+    volumes:
+      - ./platform/caddy/Caddyfile.sso:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy/snippets:/etc/caddy/snippets:ro
+      - ./platform/site:/srv/site:ro
+      - ./tests/integration/fixtures/artifacts:/srv/artifacts:ro
+      - site-data:/generated:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O/dev/null", "http://127.0.0.1:80/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  site-data:

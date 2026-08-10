@@ -12,9 +12,14 @@ import /etc/caddy/snippets/*.caddy
 
 	header /manifest.json Cache-Control "no-cache"
 	header /peers.json Cache-Control "no-cache"
+	header /styles.css Cache-Control "public, max-age=3600"
+	header /app.js Cache-Control "public, max-age=3600"
+	header /fonts/* Cache-Control "public, max-age=31536000, immutable"
 
-	@private path /admin /admin/* /api/admin/* /oauth2 /oauth2/*
-	respond @private 404
+	@private path /admin /admin/* /admin.html /admin.js /api/admin/* /oauth2 /oauth2/*
+	handle @private {
+		respond 404
+	}
 
 	handle /manifest.json {
 		root * /generated

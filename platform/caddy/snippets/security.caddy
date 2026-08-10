@@ -1,6 +1,6 @@
 (security_headers) {
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'"
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'"
 		Permissions-Policy "camera=(), geolocation=(), microphone=()"
 		Referrer-Policy "no-referrer"
 		X-Content-Type-Options "nosniff"
