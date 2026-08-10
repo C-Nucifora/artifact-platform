@@ -133,9 +133,9 @@ single primary action in a region; its rarity makes it legible.
 
 ## Typography
 
-**Display Font:** Barlow Semi Condensed (self-hosted, with Arial Narrow fallback)  
-**Body Font:** Avenir Next (with Segoe UI and system sans fallbacks)  
-**Label/Mono Font:** SFMono-Regular (with Consolas and Liberation Mono fallbacks)
+- **Display Font:** Barlow Semi Condensed (self-hosted, with Arial Narrow fallback)
+- **Body Font:** Avenir Next (with Segoe UI and system sans fallbacks)
+- **Label/Mono Font:** SFMono-Regular (with Consolas and Liberation Mono fallbacks)
 
 **Character:** Display type is compact, forceful, and architectural. Body copy
 stays familiar and readable; monospaced labels turn machine state into a

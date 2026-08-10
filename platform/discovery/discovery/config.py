@@ -13,7 +13,7 @@ DEFAULT_INTERVAL = 120.0
 DEFAULT_FETCH_TIMEOUT = 5.0
 DEFAULT_SOCKET = "/var/run/tailscale/tailscaled.sock"
 DEFAULT_MESH_CONFIG = "/config/mesh.json"
-DEFAULT_MANAGEMENT_HOST = "0.0.0.0"  # noqa: S104 - container network only; never host-published
+DEFAULT_MANAGEMENT_HOST = "127.0.0.1"
 DEFAULT_MANAGEMENT_PORT = 8090
 
 

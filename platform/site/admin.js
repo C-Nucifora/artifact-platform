@@ -73,6 +73,14 @@ function peerRow(peerId) {
   checkbox.name = "excluded";
   checkbox.checked = state.config.excluded_peers.includes(peerId);
   checkbox.setAttribute("aria-label", "Exclude peer");
+  checkbox.addEventListener("change", () => {
+    if (
+      checkbox.checked &&
+      !window.confirm(`Exclude ${peerId} and all of its artifacts from this mesh?`)
+    ) {
+      checkbox.checked = false;
+    }
+  });
   excludeLabel.append(checkbox, element("span", null, "Exclude peer"));
   controls.append(excludeLabel);
 
@@ -141,6 +149,82 @@ function collectConfig() {
   return { version: 1, excluded_peers: excluded.sort(), peers };
 }
 
+function validHost(value) {
+  if (value.includes(":")) {
+    try {
+      return Boolean(new URL(`http://[${value}]/`).hostname);
+    } catch {
+      return false;
+    }
+  }
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/i.test(value) || value.includes("..")) {
+    return false;
+  }
+  return value
+    .split(".")
+    .every((part) => part.length <= 63 && !part.startsWith("-") && !part.endsWith("-"));
+}
+
+function validPublicUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return (
+      parsed.protocol === "https:" &&
+      Boolean(parsed.hostname) &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
+function setFieldValidity(input, message) {
+  input.setCustomValidity(message);
+  if (message) input.setAttribute("aria-invalid", "true");
+  else input.removeAttribute("aria-invalid");
+}
+
+function validateConfigFields() {
+  let valid = true;
+  for (const row of document.querySelectorAll(".peer-editor-row")) {
+    const manual = row.dataset.manual === "true";
+    const ssh = row.elements.ssh_target;
+    const publicUrl = row.elements.public_url;
+    const slugs = row.elements.excluded_artifacts;
+    const sshValue = ssh.value.trim();
+    const publicValue = publicUrl.value.trim();
+    const slugValues = slugs.value.split(",").map((value) => value.trim()).filter(Boolean);
+
+    setFieldValidity(
+      ssh,
+      manual && !sshValue
+        ? "A manual peer requires an SSH target."
+        : sshValue && !validHost(sshValue)
+          ? "Use a hostname or Tailscale IP without a username."
+          : "",
+    );
+    setFieldValidity(
+      publicUrl,
+      manual && !publicValue
+        ? "A manual peer requires a public HTTPS endpoint."
+        : publicValue && !validPublicUrl(publicValue)
+          ? "Use an HTTPS URL without credentials, query data, or a fragment."
+          : "",
+    );
+    setFieldValidity(
+      slugs,
+      slugValues.some((slug) => !/^[a-z0-9][a-z0-9-]{0,63}$/.test(slug))
+        ? "Use comma-separated lowercase artifact slugs."
+        : "",
+    );
+    valid = valid && ssh.validity.valid && publicUrl.validity.valid && slugs.validity.valid;
+  }
+  return valid;
+}
+
 async function loadConfig() {
   try {
     const response = await fetch("/api/admin/config", { cache: "no-store" });
@@ -160,6 +244,11 @@ async function loadConfig() {
 
 async function saveConfig(event) {
   event.preventDefault();
+  if (!validateConfigFields()) {
+    setSaveState("Fix the highlighted fields before saving.", "is-error");
+    document.querySelector('[aria-invalid="true"]')?.focus();
+    return;
+  }
   setSaveState("Saving configuration");
   try {
     const response = await fetch("/api/admin/config", {

@@ -6,6 +6,7 @@ import pytest
 
 from discovery.config import Config
 from discovery.loop import run_once
+from discovery.mesh_config import ConfigStore
 from discovery.tailnet import Device, TailnetError
 
 SELF = Device(hostname="studio", dns_name="studio.tail1234.ts.net", ips=("100.64.0.1",))
@@ -49,18 +50,40 @@ def test_run_once_writes_manifest_and_peers(cfg):
     assert [p["dns_name"] for p in peers["peers"]] == ["pi.tail1234.ts.net"]
 
 
-def test_run_once_survives_tailnet_error(cfg):
+def test_run_once_survives_tailnet_error_without_erasing_last_good_peers(cfg):
+    store = ConfigStore(cfg.mesh_config_path)
+    run_once(
+        cfg,
+        get_status_fn=lambda socket_path: (SELF, [PEER]),
+        fetcher=lambda peer, socket, timeout: PEER_MANIFEST,
+        config_store=store,
+    )
+    last_good = read_json(cfg.output_dir / "peers.json")
+
     def failing_status(socket_path):
         raise TailnetError("tailscaled not up yet")
 
-    run_once(cfg, get_status_fn=failing_status, fetcher=lambda peer, socket, timeout: None)
+    run_once(
+        cfg,
+        get_status_fn=failing_status,
+        fetcher=lambda peer, socket, timeout: None,
+        config_store=store,
+    )
 
     manifest = read_json(cfg.output_dir / "manifest.json")
     assert manifest["device"] == {}
     assert [a["slug"] for a in manifest["artifacts"]] == ["demo"]
 
-    peers = read_json(cfg.output_dir / "peers.json")
-    assert peers["peers"] == []
+    assert read_json(cfg.output_dir / "peers.json") == last_good
+
+
+def test_run_once_first_tailnet_error_creates_empty_peer_document(cfg):
+    def failing_status(socket_path):
+        raise TailnetError("tailscaled not up yet")
+
+    run_once(cfg, get_status_fn=failing_status, fetcher=lambda peer, socket, timeout: None)
+
+    assert read_json(cfg.output_dir / "peers.json")["peers"] == []
 
 
 def test_run_once_creates_output_dir(cfg):
@@ -83,6 +106,7 @@ def test_config_defaults():
     assert cfg.fetch_timeout == 5.0
     assert cfg.socket_path == "/var/run/tailscale/tailscaled.sock"
     assert str(cfg.mesh_config_path) == "/config/mesh.json"
+    assert cfg.management_host == "127.0.0.1"
 
 
 def test_config_from_env():

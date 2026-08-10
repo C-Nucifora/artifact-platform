@@ -400,4 +400,3 @@ git push origin HEAD
 - [ ] **Step 5: Verify GitHub state**
 
 Use `gh run list --branch local-preview-no-tailnet-required --limit 5`, inspect the newest run to completion, verify the pull request is current, and confirm the default-branch ruleset remains active with administrator bypass.
-

@@ -1,6 +1,7 @@
 .PHONY: lint unit build validate-sso integration integration-sso ui check
 
 lint:
+	git diff --check 4b825dc642cb6eb9a060e54bf8d69288fbee4904
 	shellcheck scripts/*.sh
 	cd platform/discovery && uv run --group dev ruff check . && uv run --group dev ruff format --check .
 
@@ -28,18 +29,18 @@ validate-sso:
 		--allowed-group=artifact-platform-admins --config-test
 
 integration:
-	docker compose -f docker-compose.test.yml up -d --wait
-	uv run --project platform/discovery --group dev pytest tests/integration/test_http.py; \
-	status=$$?; \
-	docker compose -f docker-compose.test.yml down -v; \
-	exit $$status
+	@set -eu; \
+	cleanup() { status=$$?; if [ $$status -ne 0 ]; then docker compose -f docker-compose.test.yml logs --no-color; fi; docker compose -f docker-compose.test.yml down -v; exit $$status; }; \
+	trap cleanup EXIT; \
+	docker compose -f docker-compose.test.yml up -d --wait; \
+	uv run --project platform/discovery --group dev pytest tests/integration/test_http.py
 
 integration-sso:
-	docker compose -f docker-compose.sso.test.yml up -d --wait
-	uv run --project platform/discovery --group dev pytest tests/integration/test_sso_http.py; \
-	status=$$?; \
-	docker compose -f docker-compose.sso.test.yml down -v; \
-	exit $$status
+	@set -eu; \
+	cleanup() { status=$$?; if [ $$status -ne 0 ]; then docker compose -f docker-compose.sso.test.yml logs --no-color; fi; docker compose -f docker-compose.sso.test.yml down -v; exit $$status; }; \
+	trap cleanup EXIT; \
+	docker compose -f docker-compose.sso.test.yml up -d --wait; \
+	uv run --project platform/discovery --group dev pytest tests/integration/test_sso_http.py
 
 ui:
 	npm test

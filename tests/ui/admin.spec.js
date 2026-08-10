@@ -32,6 +32,7 @@ test("edits exclusions, endpoints, and manual peers", async ({ page }) => {
   await page.goto("/admin.html");
 
   await expect(page.getByRole("heading", { name: "Mesh configuration" })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
   const workshop = page.getByTestId("peer-workshop-tail1234-ts-net");
   await workshop.getByLabel("Exclude peer").check();
   await workshop.getByLabel("Public HTTPS endpoint").fill("https://workshop.example.com");
@@ -52,6 +53,40 @@ test("edits exclusions, endpoints, and manual peers", async ({ page }) => {
     public_url: "https://trackside.example.com",
     excluded_artifacts: ["private-demo", "internal"],
   });
+});
+
+test("validates endpoints and slugs before sending configuration", async ({ page }) => {
+  let putCount = 0;
+  await page.route("**/api/admin/config", async (route) => {
+    if (route.request().method() === "PUT") putCount += 1;
+    await route.fulfill({ json: configResponse });
+  });
+  await page.goto("/admin.html");
+  const studio = page.getByTestId("peer-studio-tail1234-ts-net");
+  await studio.getByLabel("Public HTTPS endpoint").fill("http://insecure.example.com");
+  await studio.getByLabel("Excluded artifact slugs").fill("../private");
+
+  await page.getByRole("button", { name: "Save configuration" }).click();
+
+  await expect(page.getByText("Fix the highlighted fields before saving.")).toBeVisible();
+  await expect(studio.getByLabel("Public HTTPS endpoint")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(putCount).toBe(0);
+});
+
+test("canceling peer exclusion leaves the peer included", async ({ page }) => {
+  await page.route("**/api/admin/config", (route) => route.fulfill({ json: configResponse }));
+  await page.goto("/admin.html");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  const exclusion = page
+    .getByTestId("peer-workshop-tail1234-ts-net")
+    .getByLabel("Exclude peer");
+
+  await exclusion.click();
+
+  await expect(exclusion).not.toBeChecked();
 });
 
 test("keeps an unsaved state and explains revision conflicts", async ({ page }) => {

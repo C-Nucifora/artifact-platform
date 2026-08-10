@@ -7,14 +7,20 @@ import threading
 from discovery.api import create_server
 from discovery.config import Config
 from discovery.loop import run_once
+from discovery.mesh_config import ConfigStore
 
 log = logging.getLogger(__name__)
 
 
 class DiscoveryController:
-    def __init__(self, cfg: Config, runner=run_once):
+    def __init__(self, cfg: Config, runner=run_once, config_store: ConfigStore | None = None):
         self._cfg = cfg
-        self._runner = runner
+        self.config_store = config_store or ConfigStore(cfg.mesh_config_path)
+        self._runner = (
+            (lambda active_cfg: run_once(active_cfg, config_store=self.config_store))
+            if runner is run_once
+            else runner
+        )
         self._pending = threading.Event()
         self._stop = threading.Event()
         self._snapshot_lock = threading.Lock()
@@ -57,8 +63,9 @@ class DiscoveryController:
 
 def run_service(cfg: Config) -> None:
     """Run discovery in the main thread and management HTTP in a worker."""
-    controller = DiscoveryController(cfg)
-    server = create_server(cfg, controller)
+    config_store = ConfigStore(cfg.mesh_config_path)
+    controller = DiscoveryController(cfg, config_store=config_store)
+    server = create_server(cfg, controller, config_store=config_store)
     api_thread = threading.Thread(target=server.serve_forever, name="management-api", daemon=True)
 
     def handle_signal(signum, frame):

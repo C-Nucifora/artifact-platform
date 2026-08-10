@@ -1,8 +1,11 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import pytest
 
 from discovery.mesh_config import (
+    ConfigStore,
     ConfigValidationError,
     RevisionConflict,
     load_mesh_config,
@@ -103,6 +106,42 @@ def test_load_invalid_file_uses_last_valid_document(tmp_path):
     loaded = load_mesh_config(path, fallback=saved)
 
     assert loaded == saved
+
+
+def test_config_store_retains_last_valid_document_after_bad_hand_edit(tmp_path):
+    path = tmp_path / "mesh.json"
+    path.write_text(
+        json.dumps({"version": 1, "excluded_peers": ["pi.tail1234.ts.net"]}),
+        encoding="utf-8",
+    )
+    store = ConfigStore(path)
+    valid = store.load()
+
+    path.write_text("{broken", encoding="utf-8")
+
+    assert store.load() == valid
+
+
+def test_config_store_serializes_revision_checked_writes(tmp_path):
+    path = tmp_path / "mesh.json"
+    path.write_text('{"version": 1}', encoding="utf-8")
+    store = ConfigStore(path)
+    revision = store.load().revision
+    barrier = Barrier(2)
+
+    def save(peer):
+        replacement = parse_mesh_config({"version": 1, "excluded_peers": [peer]})
+        barrier.wait()
+        try:
+            store.save(replacement, revision)
+            return "saved"
+        except RevisionConflict:
+            return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(save, ["pi.tail1234.ts.net", "studio.tail1234.ts.net"]))
+
+    assert sorted(results) == ["conflict", "saved"]
 
 
 def test_save_rejects_stale_revision_without_changing_file(tmp_path):

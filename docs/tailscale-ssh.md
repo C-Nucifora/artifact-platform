@@ -58,8 +58,7 @@ docker compose logs discovery
 
 The second command should return JSON without an SSH host-key prompt, private
 key option, or password. Within one `DISCOVERY_INTERVAL`, `/peers.json` should
-show the peer with `transport` set to `tailscale-ssh` and a sanitized public
-artifact URL.
+show the peer with its sanitized public artifact URL and current sync time.
 
 ## Funnel publishing
 

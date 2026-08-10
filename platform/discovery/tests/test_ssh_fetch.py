@@ -1,8 +1,16 @@
 import json
 import subprocess
+import sys
+
+import pytest
 
 from discovery.mesh import ResolvedPeer
-from discovery.ssh_fetch import MAX_MANIFEST_BYTES, fetch_manifest_ssh
+from discovery.ssh_fetch import (
+    MAX_MANIFEST_BYTES,
+    OutputLimitError,
+    _run_command_bounded,
+    fetch_manifest_ssh,
+)
 
 
 def peer(target="pi.tail1234.ts.net"):
@@ -52,6 +60,13 @@ def test_fetch_rejects_oversized_output():
     payload = " " * MAX_MANIFEST_BYTES + "{}"
 
     assert fetch_manifest_ssh(peer(), "/sock", 1, runner=lambda a, t: payload) is None
+
+
+def test_real_subprocess_is_terminated_at_output_limit():
+    command = [sys.executable, "-c", "import sys; sys.stdout.write('x' * 200000)"]
+
+    with pytest.raises(OutputLimitError):
+        _run_command_bounded(command, timeout=2, max_stdout_bytes=1024)
 
 
 def test_fetch_maps_command_failures_to_none():

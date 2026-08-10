@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -221,3 +222,27 @@ def save_mesh_config(
             Path(tmp_name).unlink()
         raise
     return document
+
+
+class ConfigStore:
+    """Thread-safe config access that retains the last valid parsed document."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._lock = threading.RLock()
+        self._document = load_mesh_config(self.path)
+
+    def load(self) -> ConfigDocument:
+        """Refresh from disk, falling back to the last valid in-memory value."""
+        with self._lock:
+            self._document = load_mesh_config(self.path, fallback=self._document)
+            return self._document
+
+    def save(self, document: ConfigDocument, expected_revision: str) -> ConfigDocument:
+        """Serialize compare-and-replace so one revision cannot be spent twice."""
+        with self._lock:
+            current = self.load()
+            if current.revision != expected_revision:
+                raise RevisionConflict("mesh configuration changed; reload before saving")
+            self._document = save_mesh_config(self.path, document, expected_revision=None)
+            return self._document

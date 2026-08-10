@@ -91,6 +91,18 @@ def test_get_returns_normalized_config_revision_and_discovery(api):
     assert body["discovered_peers"][0]["dns_name"] == "pi.tail1234.ts.net"
 
 
+def test_get_retains_last_valid_config_after_invalid_hand_edit(api):
+    address, _, path = api
+    _, _, before = request(address, "GET", "/api/admin/config", token="correct-secret")
+
+    path.write_text("{broken", encoding="utf-8")
+    status, _, after = request(address, "GET", "/api/admin/config", token="correct-secret")
+
+    assert status == 200
+    assert after["config"] == before["config"]
+    assert after["revision"] == before["revision"]
+
+
 def test_put_requires_revision(api):
     address, _, _ = api
 

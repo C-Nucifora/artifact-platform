@@ -7,18 +7,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from discovery.config import Config
 from discovery.mesh_config import (
+    ConfigStore,
     ConfigValidationError,
     RevisionConflict,
-    load_mesh_config,
     mesh_config_to_dict,
     parse_mesh_config,
-    save_mesh_config,
 )
 
 MAX_REQUEST_BYTES = 256 * 1024
 
 
-def _handler_class(cfg: Config, controller):
+def _handler_class(cfg: Config, controller, config_store: ConfigStore):
     class Handler(BaseHTTPRequestHandler):
         server_version = "ArtifactManagement/1"
 
@@ -47,7 +46,7 @@ def _handler_class(cfg: Config, controller):
             return True
 
         def _config_response(self, status: int):
-            document = load_mesh_config(cfg.mesh_config_path)
+            document = config_store.load()
             self._json(
                 status,
                 {
@@ -94,7 +93,7 @@ def _handler_class(cfg: Config, controller):
             try:
                 raw = json.loads(self.rfile.read(length))
                 document = parse_mesh_config(raw)
-                saved = save_mesh_config(cfg.mesh_config_path, document, revision)
+                saved = config_store.save(document, revision)
             except (json.JSONDecodeError, UnicodeError, ConfigValidationError) as exc:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
                 return
@@ -131,7 +130,9 @@ def create_server(
     cfg: Config,
     controller,
     address: tuple[str, int] | None = None,
+    config_store: ConfigStore | None = None,
 ) -> ThreadingHTTPServer:
     """Create, but do not start, the internal management server."""
     bind = address or (cfg.management_host, cfg.management_port)
-    return ThreadingHTTPServer(bind, _handler_class(cfg, controller))
+    store = config_store or ConfigStore(cfg.mesh_config_path)
+    return ThreadingHTTPServer(bind, _handler_class(cfg, controller, store))
