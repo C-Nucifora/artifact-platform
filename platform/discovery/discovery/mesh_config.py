@@ -115,7 +115,7 @@ def _peer_rule(raw: object, label: str) -> PeerRule:
     manual = raw.get("manual", False)
     if not isinstance(manual, bool):
         raise ConfigValidationError(f"{label}.manual must be true or false")
-    return PeerRule(
+    rule = PeerRule(
         manual=manual,
         ssh_target=_host(raw["ssh_target"], f"{label}.ssh_target") if "ssh_target" in raw else None,
         public_url=(
@@ -125,6 +125,11 @@ def _peer_rule(raw: object, label: str) -> PeerRule:
             raw.get("excluded_artifacts"), f"{label}.excluded_artifacts", MAX_EXCLUSIONS
         ),
     )
+    if rule.manual and (rule.ssh_target is None or rule.public_url is None):
+        raise ConfigValidationError(
+            f"{label} requires ssh_target and public_url when manual is true"
+        )
+    return rule
 
 
 def _as_dict(config: MeshConfig) -> dict:

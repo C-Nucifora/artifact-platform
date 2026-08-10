@@ -25,6 +25,7 @@ def cfg(tmp_path):
         interval=120.0,
         fetch_timeout=1.0,
         socket_path="/tmp/sock",
+        mesh_config_path=tmp_path / "mesh.json",
     )
 
 
@@ -36,7 +37,7 @@ def test_run_once_writes_manifest_and_peers(cfg):
     run_once(
         cfg,
         get_status_fn=lambda socket_path: (SELF, [PEER]),
-        fetcher=lambda device, timeout: PEER_MANIFEST,
+        fetcher=lambda peer, socket, timeout: PEER_MANIFEST,
     )
 
     manifest = read_json(cfg.output_dir / "manifest.json")
@@ -52,7 +53,7 @@ def test_run_once_survives_tailnet_error(cfg):
     def failing_status(socket_path):
         raise TailnetError("tailscaled not up yet")
 
-    run_once(cfg, get_status_fn=failing_status, fetcher=lambda device, timeout: None)
+    run_once(cfg, get_status_fn=failing_status, fetcher=lambda peer, socket, timeout: None)
 
     manifest = read_json(cfg.output_dir / "manifest.json")
     assert manifest["device"] == {}
@@ -64,12 +65,12 @@ def test_run_once_survives_tailnet_error(cfg):
 
 def test_run_once_creates_output_dir(cfg):
     assert not cfg.output_dir.exists()
-    run_once(cfg, get_status_fn=lambda s: (None, []), fetcher=lambda d, t: None)
+    run_once(cfg, get_status_fn=lambda s: (None, []), fetcher=lambda p, s, t: None)
     assert cfg.output_dir.is_dir()
 
 
 def test_run_once_leaves_no_temp_files(cfg):
-    run_once(cfg, get_status_fn=lambda s: (SELF, []), fetcher=lambda d, t: None)
+    run_once(cfg, get_status_fn=lambda s: (SELF, []), fetcher=lambda p, s, t: None)
     names = sorted(p.name for p in cfg.output_dir.iterdir())
     assert names == ["manifest.json", "peers.json"]
 
@@ -107,3 +108,20 @@ def test_config_invalid_numbers_fall_back_to_defaults():
     cfg = Config.from_env({"DISCOVERY_INTERVAL": "soon", "DISCOVERY_FETCH_TIMEOUT": "-3"})
     assert cfg.interval == 120.0
     assert cfg.fetch_timeout == 5.0
+
+
+def test_run_once_does_not_fetch_an_excluded_peer(cfg):
+    cfg.mesh_config_path.write_text(
+        json.dumps({"version": 1, "excluded_peers": [PEER.dns_name]}), encoding="utf-8"
+    )
+    fetched = []
+
+    def fetcher(*args):
+        peer = args[0]
+        fetched.append(getattr(peer, "peer_id", peer.dns_name))
+        return PEER_MANIFEST
+
+    run_once(cfg, get_status_fn=lambda socket: (SELF, [PEER]), fetcher=fetcher)
+
+    assert fetched == []
+    assert read_json(cfg.output_dir / "peers.json")["peers"] == []

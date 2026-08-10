@@ -5,9 +5,11 @@ import signal
 import threading
 
 from discovery.config import Config
-from discovery.fetch import fetch_manifest
 from discovery.manifest import build_manifest
+from discovery.mesh import resolve_peers
+from discovery.mesh_config import load_mesh_config
 from discovery.peers import build_peers
+from discovery.ssh_fetch import fetch_manifest_ssh
 from discovery.tailnet import Device, TailnetError, get_status
 from discovery.util import write_json_atomic
 
@@ -24,7 +26,7 @@ def _describe(device: Device | None) -> dict:
     }
 
 
-def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest) -> None:
+def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest_ssh) -> None:
     """One cycle: rebuild manifest.json, then aggregate reachable peers into peers.json.
 
     A tailscaled that isn't up yet is survivable: the manifest is still written
@@ -44,7 +46,14 @@ def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest) -> None:
     manifest = build_manifest(cfg.artifacts_dir, device=_describe(self_device))
     write_json_atomic(cfg.output_dir / "manifest.json", manifest)
 
-    peers_doc = build_peers(peer_devices, fetcher=fetcher, timeout=cfg.fetch_timeout)
+    mesh_config = load_mesh_config(cfg.mesh_config_path).config
+    resolved_peers = resolve_peers(peer_devices, mesh_config)
+    peers_doc = build_peers(
+        resolved_peers,
+        fetcher=fetcher,
+        timeout=cfg.fetch_timeout,
+        socket_path=cfg.socket_path,
+    )
     write_json_atomic(cfg.output_dir / "peers.json", peers_doc)
 
     log.info(

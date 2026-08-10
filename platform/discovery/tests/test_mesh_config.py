@@ -79,6 +79,11 @@ def test_peer_rule_normalizes_all_supported_fields():
     assert rule.excluded_artifacts == ("internal", "private-demo")
 
 
+def test_manual_peer_requires_both_endpoints():
+    with pytest.raises(ConfigValidationError):
+        parse_mesh_config({"version": 1, "peers": {"workshop": {"manual": True}}})
+
+
 def test_load_missing_file_returns_empty_configuration(tmp_path):
     document = load_mesh_config(tmp_path / "missing.json")
 
