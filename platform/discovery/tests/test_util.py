@@ -1,6 +1,7 @@
 """Tests for atomic JSON writes."""
 
 import json
+import stat
 
 from discovery.util import write_json_atomic
 
@@ -28,3 +29,11 @@ def test_output_ends_with_newline(tmp_path):
     target = tmp_path / "out.json"
     write_json_atomic(target, {"a": 1})
     assert target.read_text().endswith("\n")
+
+
+def test_output_is_readable_by_the_unprivileged_ssh_user(tmp_path):
+    target = tmp_path / "out.json"
+
+    write_json_atomic(target, {"a": 1})
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644

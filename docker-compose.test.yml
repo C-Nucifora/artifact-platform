@@ -11,7 +11,8 @@ services:
     ports:
       - "127.0.0.1:${ARTIFACT_TEST_PORT:-8480}:80"
     volumes:
-      - ./platform/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy/Caddyfile.base:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy/snippets:/etc/caddy/snippets:ro
       - ./platform/site:/srv/site:ro
       - ./tests/integration/fixtures/artifacts:/srv/artifacts:ro
       - ./tests/integration/fixtures/generated:/generated:ro

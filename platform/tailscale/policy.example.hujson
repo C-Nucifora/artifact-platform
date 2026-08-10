@@ -1,0 +1,32 @@
+{
+  // Assign this tag to every enrolled artifact-platform node. Nodes may be
+  // enrolled interactively; no reusable auth or SSH key is required.
+  "tagOwners": {
+    "tag:artifact-platform": ["autogroup:admin"],
+  },
+
+  "grants": [
+    {
+      "src": ["tag:artifact-platform"],
+      "dst": ["tag:artifact-platform"],
+      "ip": ["tcp:22"],
+    },
+  ],
+
+  "ssh": [
+    {
+      // Automated discovery cannot use `check`, which may prompt for SSO.
+      "action": "accept",
+      "src": ["tag:artifact-platform"],
+      "dst": ["tag:artifact-platform"],
+      "users": ["artifact"],
+    },
+  ],
+
+  "nodeAttrs": [
+    {
+      "target": ["tag:artifact-platform"],
+      "attr": ["funnel"],
+    },
+  ],
+}

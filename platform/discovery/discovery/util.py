@@ -20,6 +20,7 @@ def write_json_atomic(path: Path, obj: object) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(obj, f, indent=2, sort_keys=False)
             f.write("\n")
+            os.fchmod(f.fileno(), 0o644)
         Path(tmp_name).replace(path)
     except BaseException:
         with contextlib.suppress(OSError):

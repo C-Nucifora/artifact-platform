@@ -67,6 +67,16 @@ def test_index_page():
     assert status == 200
     assert headers.get_content_type() == "text/html"
     assert b"Artifacts" in body
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["X-Frame-Options"] == "DENY"
+    assert "default-src 'self'" in headers["Content-Security-Policy"]
+    assert headers["Referrer-Policy"] == "no-referrer"
+
+
+@pytest.mark.parametrize("path", ["/admin", "/admin/", "/api/admin/config", "/oauth2/start"])
+def test_base_mode_does_not_expose_admin_or_auth_routes(path):
+    status, _, _ = get(path)
+    assert status == 404
 
 
 def test_manifest_json():
