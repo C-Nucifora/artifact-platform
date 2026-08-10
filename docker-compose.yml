@@ -22,7 +22,9 @@ services:
       TS_USERSPACE: "false"
       TS_AUTH_ONCE: "true"
       TS_SERVE_CONFIG: /config/serve.json
-      TS_EXTRA_ARGS: "--ssh"
+      # Every node advertises the policy tag used for SSH discovery and Funnel.
+      # The enrolling Tailscale identity must be a permitted tag owner.
+      TS_EXTRA_ARGS: "--ssh --advertise-tags=tag:artifact-platform"
     volumes:
       - tailscale-state:/var/lib/tailscale
       - tailscale-socket:/var/run/tailscale

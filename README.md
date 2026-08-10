@@ -1,240 +1,205 @@
-# artifact-platform
+# Artifact Platform
 
-Per-device hosting for small Claude-built web artifacts, published to the
-internet via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel).
+A self-hosted mesh for small static web tools, dashboards, and documents. Each
+device serves its own artifacts, discovers every other platform node on the
+tailnet, and presents the combined catalog through a control-plane interface.
 
-Each device that runs this stack is fully self-contained: it serves whatever
-is in its own `artifacts/` folder at `https://<device>.<tailnet>.ts.net/`.
-Devices discover each other over the tailnet automatically and cross-link to
-whatever the others are hosting — nothing is centralized, no device depends on
-any other, and there is no peer list to maintain.
+The default deployment is intentionally low-friction:
 
-This repo is the reusable scaffold (compose stack, configs, discovery code).
-Hosted content under `artifacts/` is deliberately **not** committed.
+- local preview works before Tailscale is configured;
+- Tailscale enrollment can use its one-time browser login, with no auth key;
+- peers authenticate through Tailscale SSH node identity, with no SSH keypair;
+- all discovered platform nodes mesh by default;
+- operators can exclude peers or artifacts and add or override endpoints;
+- artifacts can be published through Tailscale Funnel;
+- an optional custom-domain mode adds Authentik-compatible OIDC SSO and an
+  administrator-only configuration surface.
 
-## Just want to look at an artifact right now?
-
-You don't need a Tailscale account, an auth key, or anything else for this:
+## Local preview
 
 ```sh
 docker compose up -d
 open http://localhost:8765
 ```
 
-That's Caddy on a loopback-only port — same content, same `/artifacts/<slug>/`
-paths, zero tailnet setup. Publishing to the tailnet (so other devices can
-reach it) or the internet (via Funnel, so anyone can) is a separate, optional
-step below — reach for it when you actually want to share something off this
-machine, not just to preview it.
+This requires no Tailscale account, key, or public endpoint. Put an artifact
+in `artifacts/<slug>/index.html`; Caddy serves it immediately.
 
-## How it works
+## Mesh architecture
 
 ```mermaid
 flowchart LR
-    internet((Internet)) -->|Funnel HTTPS 443| ts
-
-    subgraph device [one device, one compose stack]
-        ts[tailscale sidecar\ncontainerboot + serve.json] -->|proxy :80| caddy[Caddy]
-        caddy -->|serves| files[("/ index site\n/artifacts/*\n/manifest.json\n/peers.json")]
-        disco[discovery loop] -->|writes manifest.json + peers.json| files
-        disco -->|tailscale status --json| ts
-    end
-
-    disco -->|GET https://peer/manifest.json| peers[(other devices\non the tailnet)]
+    TS[Tailscale node identity] -->|SSH as artifact| D[Discovery service]
+    D -->|read /generated/manifest.json| P[Peer nodes]
+    D --> M[(manifest.json + peers.json)]
+    C[Caddy] --> M
+    C --> A[Local artifacts]
+    F[Funnel or custom domain] --> C
+    O[OIDC / Authentik] -. protects admin only .-> C
 ```
 
-Three services share the Tailscale sidecar's network namespace
-(`network_mode: service:tailscale`):
+The `tailscale`, `caddy`, and `discovery` containers share one network
+namespace. Discovery asks the local Tailscale daemon for online devices, then
+runs the exact remote command `cat /generated/manifest.json` through
+`tailscale ssh artifact@<peer>`. Tailscale authenticates both nodes; OpenSSH
+private keys and `authorized_keys` are never generated or distributed.
 
-- **tailscale** — joins the tailnet, terminates HTTPS, and (per
-  `platform/tailscale/serve.json`) exposes port 443 to the internet with
-  Funnel, proxying to Caddy on `127.0.0.1:80`.
-- **caddy** — serves the index site, everything under `artifacts/` (with
-  directory listings), and the generated `manifest.json` / `peers.json`.
-- **discovery** — every `DISCOVERY_INTERVAL` seconds (default 120):
-  1. Rebuilds `manifest.json` from `artifacts/*/meta.json` (the slug stands in
-     for a missing/malformed title).
-  2. Asks the local tailscaled for online peers (`tailscale status --json`).
-  3. Fetches `https://<peer>/manifest.json` from each — by Tailscale IP, with
-     TLS validated against the peer's MagicDNS name, under a hard deadline.
-  4. Sanitizes and writes every valid response into `peers.json`. Peers that
-     time out, 404, or return garbage are skipped silently: they're just not
-     running the platform, which is expected, not an error.
+Peer manifests are treated as untrusted data. The discovery service validates
+their shape, rebuilds safe public URLs, filters excluded artifact slugs, and
+atomically writes the public catalog.
 
-A peer's manifest is data from another machine, and this device republishes it
-on a page anyone on the internet can load. So peer entries are filtered to a
-known shape before they're written: slugs must look like slugs, text is
-truncated, and each link target is rebuilt locally as `/artifacts/<slug>/`
-rather than taken from the peer — otherwise a peer-supplied path like
-`@evil.example` would concatenate into a link pointing at someone else's host.
+## Join a tailnet without keys
 
-The index page (`/`) renders both JSON files client-side: "on this device" and
-"other devices on the tailnet", with friendly empty states on first boot.
+The tailnet needs a one-time policy installation. Copy
+[`platform/tailscale/policy.example.hujson`](platform/tailscale/policy.example.hujson)
+into the Tailscale policy editor, or merge its `tagOwners`, `grants`, `ssh`, and
+`nodeAttrs` sections into an existing policy. The enrolling user must be a
+Tailscale admin because the default compose stack automatically advertises
+`tag:artifact-platform`.
+
+Then start each node without setting `TS_AUTHKEY`:
+
+```sh
+cp .env.example .env
+docker compose up -d
+docker compose logs tailscale
+```
+
+Open the login URL shown once in the logs. That browser approval enrolls the
+node; it is not an SSH key and there is nothing for an end user to create,
+copy, or rotate. Persistent node identity lives in the `tailscale-state`
+volume. Detailed setup and verification are in
+[`docs/tailscale-ssh.md`](docs/tailscale-ssh.md).
+
+After enrollment, the public catalog is available at the node's Funnel URL:
+
+```text
+https://<TS_HOSTNAME>.<tailnet>.ts.net/
+```
+
+## Default mesh and manual controls
+
+Every online node tagged `artifact-platform` is included automatically. The
+versioned operator file is [`config/mesh.json`](config/mesh.json):
+
+```json
+{
+  "version": 1,
+  "excluded_peers": ["retired.tailnet-name.ts.net"],
+  "peers": {
+    "lab.tailnet-name.ts.net": {
+      "public_url": "https://artifacts.example.com/lab",
+      "excluded_artifacts": ["private-dashboard"]
+    },
+    "manual.example": {
+      "manual": true,
+      "ssh_target": "100.64.0.20",
+      "public_url": "https://manual.example.com"
+    }
+  }
+}
+```
+
+You can edit this file directly. Invalid edits are rejected and the last valid
+configuration remains active. A discovered peer can override `ssh_target`,
+`public_url`, or `excluded_artifacts`; a manual peer additionally requires both
+endpoints. Removing a rule returns that peer to automatic behavior.
+
+## SSO and the admin scope
+
+The base/Funnel mode deliberately returns 404 for `/admin`, `/admin.html`,
+`/admin.js`, `/api/admin/*`, and `/oauth2/*`. The administration surface only
+exists when the SSO overlay is enabled.
+
+For a custom-domain deployment:
+
+```sh
+cp .env.example .env
+openssl rand -hex 32          # MANAGEMENT_API_TOKEN
+openssl rand -base64 32       # OIDC_COOKIE_SECRET
+docker compose -f docker-compose.yml -f docker-compose.sso.yml up -d
+```
+
+Set `SITE_ADDRESS`, the Authentik issuer/client values, and the permitted group
+in `.env` first. Caddy delegates admin authentication to OAuth2 Proxy, which
+uses generic OIDC and requires membership in `artifact-platform-admins` by
+default. The internal management bearer token is injected by Caddy and is
+never sent to the browser. See [`docs/authentik.md`](docs/authentik.md) for the
+exact provider and callback configuration.
 
 ## Artifact convention
 
-```
+```text
 artifacts/
 └── world-clock/
-    ├── index.html    # required — the artifact itself
-    ├── meta.json     # optional: {"title": "...", "description": "..."}
-    └── ...           # any other static assets
+    ├── index.html
+    ├── meta.json
+    └── ...
 ```
 
-Scaffold one with:
+`meta.json` is optional and may contain `title` and `description`. Scaffold an
+artifact with:
 
 ```sh
 scripts/new-artifact.sh world-clock "World Clock" "Timezones at a glance"
 ```
 
-Dropping a folder in is enough — Caddy serves it immediately and the next
-discovery pass adds it to `manifest.json`. No restarts.
-
-### Templates
-
-`templates/` holds ready-to-copy starting points that share one house style
-(the UQR palette, dark-first, fully self-contained): `tool/` (an interactive
-widget), `dashboard/` (a grid of stat tiles), and `document/` (a readable
-article). [`ARTIFACTS.md`](ARTIFACTS.md) is the authoring contract — the design
-tokens, the hard rules, and which template to start from — written so an LLM
-(or a person) produces artifacts that drop straight in and look native.
-
-## Standing up a device
-
-Publishing to the tailnet — beyond the localhost preview above — needs the
-device to join Tailscale. Two ways to do that, pick one:
-
-- **No auth key, approve interactively (fewest steps if you're doing this
-  once, by hand):** leave `TS_AUTHKEY` blank in `.env` (or skip `.env`
-  entirely — it's optional for this path) and run `docker compose up -d`.
-  Then `docker compose logs tailscale` and open the login link it prints; one
-  click approves the device. Nothing else to create or paste anywhere.
-- **Auth key (better for unattended/repeat setups, e.g. scripting multiple
-  devices):** create one at
-  <https://login.tailscale.com/admin/settings/keys> and paste it into
-  `TS_AUTHKEY` in `.env`.
-
-Either way, before the tailnet URL and Funnel work, one-time tailnet prep in
-the admin console:
-
-1. **Enable HTTPS certificates** and **MagicDNS** (DNS page).
-2. **Allow Funnel** in the tailnet policy file — the node needs the `funnel`
-   node attribute:
-
-   ```json
-   "nodeAttrs": [
-       { "target": ["autogroup:member"], "attr": ["funnel"] }
-   ]
-   ```
-
-   If you authenticate the container with a tagged key, target the tag
-   (e.g. `"target": ["tag:artifacts"]`) instead of `autogroup:member`.
-
-Per device:
-
-```sh
-cp .env.example .env      # pick a unique TS_HOSTNAME; TS_AUTHKEY optional, see above
-docker compose up -d
-```
-
-Then verify:
-
-```sh
-docker compose exec tailscale tailscale status   # joined the tailnet?
-docker compose exec tailscale tailscale funnel status
-curl https://<TS_HOSTNAME>.<tailnet>.ts.net/manifest.json
-```
-
-The device appears on other devices' index pages within one discovery
-interval, and vice versa.
+See [`ARTIFACTS.md`](ARTIFACTS.md) and `templates/` for the authoring contract
+and starter layouts.
 
 ## Configuration
 
-All optional, via `.env` (see `.env.example`):
+Copy `.env.example` to `.env`. Important values are:
 
-| Variable | Default | Meaning |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `TS_AUTHKEY` | — | Tailscale auth key. Optional — blank falls back to interactive login (see "Standing up a device") |
-| `TS_HOSTNAME` | `artifacts` | Device name → `https://<name>.<tailnet>.ts.net` |
-| `LOCAL_PREVIEW_PORT` | `8765` | Loopback-only port to Caddy — `http://localhost:<port>`, no Tailscale involved |
-| `DISCOVERY_INTERVAL` | `120` | Seconds between discovery passes |
-| `DISCOVERY_FETCH_TIMEOUT` | `5` | Per-peer fetch timeout in seconds |
-| `DISCOVERY_LOG_LEVEL` | `INFO` | Discovery log verbosity |
+| `TS_AUTHKEY` | blank | Optional unattended enrollment; blank uses browser login |
+| `TS_HOSTNAME` | `artifacts` | Unique MagicDNS/Funnel node name |
+| `LOCAL_PREVIEW_PORT` | `8765` | Loopback-only preview port |
+| `DISCOVERY_INTERVAL` | `120` | Seconds between mesh refreshes |
+| `DISCOVERY_FETCH_TIMEOUT` | `5` | Tailscale SSH deadline per peer |
+| `MANAGEMENT_API_TOKEN` | blank | Required only by the SSO admin overlay |
+| `SITE_ADDRESS` | — | Custom public hostname for SSO mode |
+| `OIDC_ISSUER_URL` | — | Authentik application issuer URL |
+| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | — | OIDC client credentials |
+| `OIDC_COOKIE_SECRET` | — | OAuth2 Proxy session encryption secret |
+| `OIDC_ADMIN_GROUP` | `artifact-platform-admins` | Group allowed into admin |
 
-## Development and testing
+## Development
 
-Requires [uv](https://docs.astral.sh/uv/), Docker, and shellcheck.
+Requires Docker, uv, Node.js, and shellcheck.
 
 ```sh
-make lint          # shellcheck + ruff (lint & format)
-make unit          # pytest unit tests for the discovery service
-make build         # docker compose config + image build
-make integration   # real Caddy + fixtures over HTTP on 127.0.0.1:8480
-make check         # all of the above
+make lint
+make unit
+make build
+make integration
+make integration-sso
+npm ci && npx playwright install chromium webkit
+make ui
+make check
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same four targets on every push and
-pull request.
+GitHub Actions runs six separately protected jobs on pushes and pull requests:
+lint, unit, image/config build, public HTTP integration, SSO integration, and
+desktop/mobile browser tests. The default-branch ruleset requires all six plus
+one approving review and resolved review threads, blocks deletion and force
+pushes, and grants an explicit always-bypass to repository administrators.
 
-- **Unit tests** cover the discovery logic in isolation: manifest building
-  against artifact trees with present/absent/partial/malformed `meta.json`,
-  `tailscale status` parsing (offline peers, missing DNS names, CLI failures),
-  peer aggregation (timeouts, 404s, garbage responses, fetchers that raise or
-  hang), sanitization of hostile peer manifests, and atomic file writes.
-- **Integration tests** bring up the real Caddyfile and index site in Docker
-  with fixture content and assert status codes, content types, caching
-  headers, directory listings, and 404 behavior over real HTTP.
-
-### What's not covered by CI
-
-Automated tests exercise everything that can run without Tailscale
-credentials. They do **not** verify:
-
-- real Funnel reachability from the public internet,
-- certificate issuance for the `ts.net` name,
-- multi-device cross-discovery over an actual tailnet.
-
-Those need a real auth key on real devices: stand up two devices as above and
-check each one's index page lists the other. The discovery loop's tailnet
-interactions are tested against mocked `tailscale status` output and a mocked
-HTTP layer, not a live daemon.
-
-## Repo layout
-
-```
-docker-compose.yml        # the real three-service stack
-docker-compose.test.yml   # Caddy-only stack for integration tests
-platform/
-├── caddy/Caddyfile
-├── tailscale/serve.json  # Funnel + proxy config (TS_CERT_DOMAIN templated)
-├── discovery/            # Python discovery service + unit tests
-└── site/index.html       # the index page
-scripts/new-artifact.sh   # scaffold a new artifact
-ARTIFACTS.md              # authoring contract for artifacts (LLM-facing)
-templates/                # reusable per-type starting points + design tokens
-tests/integration/        # HTTP tests + fixtures for the test stack
-artifacts/                # your hosted content (gitignored)
-```
+Live Tailscale enrollment, Funnel certificate issuance, and real Authentik
+login require those external systems and are covered by the operational
+runbooks rather than CI.
 
 ## Troubleshooting
 
-- **Node joined but `https://…ts.net` times out from the internet** — Funnel
-  isn't active: check `tailscale funnel status` inside the sidecar and confirm
-  the `funnel` node attribute targets this node (tag vs. member!).
-- **Site up but peers never appear** — peers must also run this stack and be
-  online; check `docker compose logs discovery` (set
-  `DISCOVERY_LOG_LEVEL=DEBUG` to see why individual peers were skipped).
-- **Device shows up as `artifacts-1`** — hostname collision on the tailnet;
-  set a unique `TS_HOSTNAME` in `.env`.
-- **Everything breaks after the sidecar restarts** — `caddy` and `discovery`
-  join the sidecar's network namespace, and Docker does not re-attach them
-  when that container is replaced. After any `docker compose up -d` that
-  recreates `tailscale`, restart the other two: `docker compose restart caddy
-  discovery`.
-- **Wiping a device's identity** — `docker compose down -v` removes the
-  Tailscale state volume; the next `up` joins as a fresh node (needs either
-  `TS_AUTHKEY` set, or another interactive login approval — see "Standing up
-  a device").
-- **`docker compose up` fails to bind a port** — something else on the host is
-  already using `LOCAL_PREVIEW_PORT` (default 8765); set a different value in
-  `.env`.
+- `tailscale ssh` is denied: confirm both nodes advertise
+  `tag:artifact-platform` and the policy contains the supplied `accept` SSH
+  rule for user `artifact`.
+- A node is absent: check `docker compose exec tailscale tailscale status` and
+  `docker compose logs discovery`; excluded peers are intentionally omitted.
+- Funnel is unavailable: confirm the node has the `funnel` attribute and HTTPS
+  certificates are enabled for the tailnet.
+- SSO loops or returns 403: verify the exact issuer/callback URLs and that the
+  ID token contains the configured group in its `groups` claim.
+- Recreating the Tailscale sidecar can detach shared network namespaces;
+  restart `caddy`, `discovery`, and `oauth2-proxy` after replacing it.

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-10T00:00:00+10:00",
+  "title": "Design System: Artifact Platform",
+  "extensions": {
+    "colorMeta": {
+      "void-canvas": {"role": "neutral", "displayName": "Void Canvas", "canonical": "#090d12", "tonalRamp": ["#05070a", "#090d12", "#131b24", "#273440", "#52616c", "#84919a", "#b5c0c8", "#f1f5f3"]},
+      "mesh-signal": {"role": "primary", "displayName": "Mesh Signal", "canonical": "#b9ed70", "tonalRamp": ["#18280f", "#294317", "#3d6222", "#57852f", "#76a940", "#98cc56", "#b9ed70", "#ebffd0"]},
+      "peer-cobalt": {"role": "secondary", "displayName": "Peer Cobalt", "canonical": "#6ea0ff", "tonalRamp": ["#101b34", "#182c55", "#23437d", "#315daa", "#487ad5", "#6ea0ff", "#a9c5ff", "#e8efff"]},
+      "warning-amber": {"role": "tertiary", "displayName": "Warning Amber", "canonical": "#f0be6b", "tonalRamp": ["#291d0c", "#493315", "#704d20", "#996b2d", "#c18d43", "#e2ac5c", "#f0be6b", "#ffedce"]},
+      "fault-red": {"role": "tertiary", "displayName": "Fault Red", "canonical": "#ff7b72", "tonalRamp": ["#31100f", "#551b19", "#822825", "#b33832", "#dd5049", "#ff7b72", "#ffb0aa", "#ffe7e5"]}
+    },
+    "typographyMeta": {
+      "display": {"displayName": "Condensed Display", "purpose": "Short uppercase hero and section hierarchy."},
+      "body": {"displayName": "Humanist Body", "purpose": "Descriptions and operational explanation."},
+      "label": {"displayName": "Telemetry Label", "purpose": "State, identifiers, badges, and controls."}
+    },
+    "shadows": [
+      {"name": "instrument-ambient", "value": "0 1.5rem 4rem rgba(0, 0, 0, 0.28)", "purpose": "The signature mesh instrument only."},
+      {"name": "signal-glow", "value": "0 0.2rem 0.7rem rgba(185, 237, 112, 0.25)", "purpose": "Online status indicators."}
+    ],
+    "motion": [
+      {"name": "state-quick", "value": "160ms ease-out", "purpose": "Hover, focus, and compact state changes."},
+      {"name": "scan-bus", "value": "4s cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Continuous mesh activity readout; disabled for reduced motion."}
+    ],
+    "breakpoints": [
+      {"name": "compact", "value": "760px"}
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single affirmative action within an operational region.",
+      "html": "<button class=\"ds-button-primary\">Save mesh</button>",
+      "css": ".ds-button-primary { min-height: 2.75rem; padding: 0.7rem 1rem; border: 1px solid var(--signal, #b9ed70); border-radius: 0; background: var(--signal, #b9ed70); color: var(--canvas-deep, #05080b); font: 700 0.68rem/1.3 var(--mono, monospace); letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: transform 160ms ease-out; } .ds-button-primary:hover { transform: translateY(-2px); } .ds-button-primary:focus-visible { outline: 3px solid var(--signal, #b9ed70); outline-offset: 4px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A bounded operational action that does not commit state.",
+      "html": "<button class=\"ds-button-secondary\">Run discovery</button>",
+      "css": ".ds-button-secondary { min-height: 2.75rem; padding: 0.7rem 1rem; border: 1px solid var(--line-strong, #52616c); border-radius: 0; background: var(--panel-raised, #15212b); color: var(--ink, #f1f5f3); font: 700 0.68rem/1.3 var(--mono, monospace); letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: background-color 160ms ease-out; } .ds-button-secondary:hover { background: var(--panel, #101820); } .ds-button-secondary:focus-visible { outline: 3px solid var(--signal, #b9ed70); outline-offset: 4px; }"
+    },
+    {
+      "name": "Endpoint Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Machine endpoint input with telemetry typography.",
+      "html": "<label class=\"ds-field\">PUBLIC URL<input value=\"https://node.example.com\"></label>",
+      "css": ".ds-field { display: grid; gap: 0.45rem; color: var(--ink-dim, #84919a); font: 700 0.64rem/1.3 var(--mono, monospace); letter-spacing: 0.05em; } .ds-field input { min-height: 2.75rem; padding: 0.7rem 0.8rem; border: 1px solid var(--line, #2c3a46); border-radius: 0; background: var(--canvas-deep, #05080b); color: var(--ink, #f1f5f3); font: 400 0.8rem/1.3 var(--mono, monospace); } .ds-field input:focus-visible { outline: 3px solid var(--signal, #b9ed70); outline-offset: 4px; }"
+    },
+    {
+      "name": "Online Badge",
+      "kind": "chip",
+      "description": "A compact peer-state label.",
+      "html": "<span class=\"ds-badge-online\">Online</span>",
+      "css": ".ds-badge-online { display: inline-block; padding: 0.28rem 0.5rem; border: 1px solid rgba(185, 237, 112, 0.45); border-radius: 0; color: var(--signal, #b9ed70); font: 400 0.58rem/1.3 var(--mono, monospace); letter-spacing: 0.06em; text-transform: uppercase; }"
+    },
+    {
+      "name": "Artifact Row",
+      "kind": "custom",
+      "description": "The indexed, table-like launch primitive used throughout the catalog.",
+      "html": "<a class=\"ds-artifact-row\" href=\"#\"><span>01</span><strong>World Clock</strong><em>Launch ↗</em></a>",
+      "css": ".ds-artifact-row { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr) auto; gap: 1rem; align-items: center; min-height: 6.5rem; padding: 1.1rem 0; border-top: 1px solid var(--line, #2c3a46); border-bottom: 1px solid var(--line, #2c3a46); color: var(--ink, #f1f5f3); text-decoration: none; transition: background-color 160ms ease-out, transform 160ms ease-out; } .ds-artifact-row span, .ds-artifact-row em { color: var(--ink-dim, #84919a); font: 400 0.68rem/1.3 var(--mono, monospace); font-style: normal; } .ds-artifact-row em { color: var(--signal, #b9ed70); text-transform: uppercase; } .ds-artifact-row:hover { background: var(--panel-raised, #15212b); transform: translateX(0.35rem); } .ds-artifact-row:focus-visible { outline: 3px solid var(--signal, #b9ed70); outline-offset: 4px; }"
+    },
+    {
+      "name": "Connection State",
+      "kind": "nav",
+      "description": "The top-bar identity and live mesh status pattern.",
+      "html": "<span class=\"ds-connection\"><i></i>Mesh connected</span>",
+      "css": ".ds-connection { display: inline-flex; gap: 0.6rem; align-items: center; color: var(--ink-soft, #b5c0c8); font: 400 0.72rem/1.3 var(--mono, monospace); letter-spacing: 0.04em; text-transform: uppercase; } .ds-connection i { width: 0.55rem; height: 0.55rem; border: 1px solid var(--signal, #b9ed70); border-radius: 50%; background: var(--signal, #b9ed70); box-shadow: 0 0.2rem 0.7rem rgba(185, 237, 112, 0.25); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Observatory Instrument Bay",
+    "overview": "Artifact Platform should feel like a precise piece of network infrastructure that happens to be approachable: dark, dense, legible, and visibly alive. The interface borrows the geometry of rack instrumentation and observatory readouts without turning into science-fiction decoration. Every line, status light, and monospace label communicates state or structure. The catalog remains calm and scannable while the admin scope feels like the same instrument with its service panel open.",
+    "keyCharacteristics": ["Square, bordered surfaces arranged on an explicit grid.", "Condensed uppercase display type paired with humane body copy.", "Monospace telemetry labels and numeric readouts.", "Sparse lime signal color, cobalt peer identity, and semantic amber/red.", "Motion that suggests a scan or state transition and respects reduced motion."],
+    "rules": [
+      {"name": "The Signal Discipline Rule", "body": "Lime is reserved for focus, success, and the single primary action in a region; its rarity makes it legible.", "section": "colors"},
+      {"name": "The Three-Voice Rule", "body": "Use condensed display for hierarchy, the sans for explanation, and mono only for state, identifiers, and controls.", "section": "typography"},
+      {"name": "The Enclosure Rule", "body": "A shadow marks a physical instrument or active signal, never a routine list row.", "section": "elevation"}
+    ],
+    "dos": ["Do expose mesh and save state in plain language alongside visual signals.", "Do use one-pixel dividers to organize dense information.", "Do keep target sizes at least 2.75rem and preserve visible keyboard focus.", "Do collapse grids before removing information on small screens.", "Do disable scanning animation through prefers-reduced-motion."],
+    "donts": ["Don't introduce rounded cards, pill navigation, or soft SaaS controls.", "Don't use Mesh Signal as broad decoration or paragraph text.", "Don't add ornamental charts, glows, or gradients that carry no state.", "Don't rely on color alone for online, warning, error, or save status.", "Don't use condensed display type for long prose or mono for descriptions."]
+  }
+}
