@@ -81,6 +81,7 @@ def test_config_defaults():
     assert cfg.interval == 120.0
     assert cfg.fetch_timeout == 5.0
     assert cfg.socket_path == "/var/run/tailscale/tailscaled.sock"
+    assert str(cfg.mesh_config_path) == "/config/mesh.json"
 
 
 def test_config_from_env():
@@ -91,6 +92,7 @@ def test_config_from_env():
             "DISCOVERY_INTERVAL": "30",
             "DISCOVERY_FETCH_TIMEOUT": "2.5",
             "TS_SOCKET": "/tmp/tailscaled.sock",
+            "MESH_CONFIG_PATH": "/somewhere/mesh.json",
         }
     )
     assert str(cfg.artifacts_dir) == "/somewhere/artifacts"
@@ -98,6 +100,7 @@ def test_config_from_env():
     assert cfg.interval == 30.0
     assert cfg.fetch_timeout == 2.5
     assert cfg.socket_path == "/tmp/tailscaled.sock"
+    assert str(cfg.mesh_config_path) == "/somewhere/mesh.json"
 
 
 def test_config_invalid_numbers_fall_back_to_defaults():

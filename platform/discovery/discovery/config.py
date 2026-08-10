@@ -12,6 +12,7 @@ DEFAULT_OUTPUT_DIR = "/data"
 DEFAULT_INTERVAL = 120.0
 DEFAULT_FETCH_TIMEOUT = 5.0
 DEFAULT_SOCKET = "/var/run/tailscale/tailscaled.sock"
+DEFAULT_MESH_CONFIG = "/config/mesh.json"
 
 
 def _positive_float(env: Mapping[str, str], key: str, default: float) -> float:
@@ -35,6 +36,7 @@ class Config:
     interval: float
     fetch_timeout: float
     socket_path: str
+    mesh_config_path: Path = Path(DEFAULT_MESH_CONFIG)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Config":
@@ -44,4 +46,5 @@ class Config:
             interval=_positive_float(env, "DISCOVERY_INTERVAL", DEFAULT_INTERVAL),
             fetch_timeout=_positive_float(env, "DISCOVERY_FETCH_TIMEOUT", DEFAULT_FETCH_TIMEOUT),
             socket_path=env.get("TS_SOCKET", DEFAULT_SOCKET),
+            mesh_config_path=Path(env.get("MESH_CONFIG_PATH", DEFAULT_MESH_CONFIG)),
         )
