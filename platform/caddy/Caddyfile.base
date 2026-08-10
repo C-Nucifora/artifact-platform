@@ -1,0 +1,43 @@
+# Plain HTTP on :80 — Tailscale terminates HTTPS and proxies here.
+{
+	admin off
+	auto_https off
+}
+
+import /etc/caddy/snippets/*.caddy
+
+:80 {
+	import security_headers
+	encode zstd gzip
+
+	header /manifest.json Cache-Control "no-cache"
+	header /peers.json Cache-Control "no-cache"
+	header /styles.css Cache-Control "public, max-age=3600"
+	header /app.js Cache-Control "public, max-age=3600"
+	header /fonts/* Cache-Control "public, max-age=31536000, immutable"
+
+	@private path /admin /admin/* /admin.html /admin.js /api/admin/* /oauth2 /oauth2/*
+	handle @private {
+		respond 404
+	}
+
+	handle /manifest.json {
+		root * /generated
+		file_server
+	}
+
+	handle /peers.json {
+		root * /generated
+		file_server
+	}
+
+	handle /artifacts/* {
+		root * /srv
+		file_server browse
+	}
+
+	handle {
+		root * /srv/site
+		file_server
+	}
+}

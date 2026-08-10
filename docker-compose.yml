@@ -2,8 +2,17 @@ name: artifact-platform
 
 services:
   tailscale:
-    image: tailscale/tailscale:stable
+    build: ./platform/tailscale
+    image: artifact-platform-tailscale
     hostname: ${TS_HOSTNAME:-artifacts}
+    # Caddy shares this container's network namespace (network_mode:
+    # service:tailscale below), so publishing a port here reaches Caddy
+    # directly on localhost — independent of Tailscale login/Funnel state.
+    # Bound to loopback only: this is a same-machine preview, not another
+    # public exposure. Lets you `open http://localhost:8765` immediately
+    # after `docker compose up -d`, before doing any Tailscale setup at all.
+    ports:
+      - "127.0.0.1:${LOCAL_PREVIEW_PORT:-8765}:80"
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY:-}
       TS_STATE_DIR: /var/lib/tailscale
@@ -13,12 +22,16 @@ services:
       TS_USERSPACE: "false"
       TS_AUTH_ONCE: "true"
       TS_SERVE_CONFIG: /config/serve.json
+      # Every node advertises the policy tag used for SSH discovery and Funnel.
+      # The enrolling Tailscale identity must be a permitted tag owner.
+      TS_EXTRA_ARGS: "--ssh --advertise-tags=tag:artifact-platform"
     volumes:
       - tailscale-state:/var/lib/tailscale
       - tailscale-socket:/var/run/tailscale
       # Mounted as a directory (not a single file) so containerboot can watch
       # serve.json for changes.
       - ./platform/tailscale:/config:ro
+      - site-data:/generated:ro
     devices:
       - /dev/net/tun:/dev/net/tun
     cap_add:
@@ -32,7 +45,8 @@ services:
     depends_on:
       - tailscale
     volumes:
-      - ./platform/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy/Caddyfile.base:/etc/caddy/Caddyfile:ro
+      - ./platform/caddy/snippets:/etc/caddy/snippets:ro
       - ./platform/site:/srv/site:ro
       - ./artifacts:/srv/artifacts:ro
       # /data is Caddy's own storage dir, so generated JSON lives at /generated.
@@ -48,10 +62,17 @@ services:
       DISCOVERY_INTERVAL: ${DISCOVERY_INTERVAL:-120}
       DISCOVERY_FETCH_TIMEOUT: ${DISCOVERY_FETCH_TIMEOUT:-5}
       DISCOVERY_LOG_LEVEL: ${DISCOVERY_LOG_LEVEL:-INFO}
+      MANAGEMENT_API_TOKEN: ${MANAGEMENT_API_TOKEN:-}
     volumes:
       - ./artifacts:/artifacts:ro
+      - ./config:/config
       - site-data:/data
       - tailscale-socket:/var/run/tailscale
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
     restart: unless-stopped
 
 volumes:

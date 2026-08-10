@@ -1,0 +1,72 @@
+{
+	admin off
+}
+
+import /etc/caddy/snippets/*.caddy
+
+{$SITE_ADDRESS::80} {
+	import security_headers
+	encode zstd gzip
+
+	header /manifest.json Cache-Control "no-cache"
+	header /peers.json Cache-Control "no-cache"
+	header /styles.css Cache-Control "public, max-age=3600"
+	header /app.js Cache-Control "public, max-age=3600"
+	header /fonts/* Cache-Control "public, max-age=31536000, immutable"
+
+	handle /oauth2/* {
+		reverse_proxy {$OAUTH2_PROXY_UPSTREAM:127.0.0.1:4180}
+	}
+
+	@admin_page path /admin /admin/ /admin.html /admin.js
+	handle @admin_page {
+		route {
+			request_header -X-Auth-Request-User
+			request_header -X-Auth-Request-Email
+			request_header -X-Auth-Request-Groups
+			forward_auth {$OAUTH2_PROXY_UPSTREAM:127.0.0.1:4180} {
+				uri /oauth2/auth
+				copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Groups
+			}
+			@admin_entry path /admin /admin/
+			rewrite @admin_entry /admin.html
+			root * /srv/site
+			file_server
+		}
+	}
+
+	handle /api/admin/* {
+		route {
+			request_header -X-Auth-Request-User
+			request_header -X-Auth-Request-Email
+			request_header -X-Auth-Request-Groups
+			forward_auth {$OAUTH2_PROXY_UPSTREAM:127.0.0.1:4180} {
+				uri /oauth2/auth
+				copy_headers X-Auth-Request-User X-Auth-Request-Email X-Auth-Request-Groups
+			}
+			reverse_proxy {$MANAGEMENT_UPSTREAM:127.0.0.1:8090} {
+				header_up Authorization "Bearer {$MANAGEMENT_API_TOKEN}"
+			}
+		}
+	}
+
+	handle /manifest.json {
+		root * /generated
+		file_server
+	}
+
+	handle /peers.json {
+		root * /generated
+		file_server
+	}
+
+	handle /artifacts/* {
+		root * /srv
+		file_server browse
+	}
+
+	handle {
+		root * /srv/site
+		file_server
+	}
+}

@@ -15,5 +15,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# Frontend tooling and generated review output
+node_modules/
+test-results/
+playwright-report/
+.impeccable/review/
+
 # macOS
 .DS_Store

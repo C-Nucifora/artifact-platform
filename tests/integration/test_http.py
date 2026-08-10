@@ -67,6 +67,51 @@ def test_index_page():
     assert status == 200
     assert headers.get_content_type() == "text/html"
     assert b"Artifacts" in body
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["X-Frame-Options"] == "DENY"
+    assert "default-src 'self'" in headers["Content-Security-Policy"]
+    assert headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_index_uses_external_assets_and_semantic_landmarks():
+    status, _, body = get("/")
+
+    assert status == 200
+    assert b'<link rel="stylesheet" href="/styles.css">' in body
+    assert b'<script src="/app.js" defer></script>' in body
+    assert b"<style>" not in body
+    assert b"<main" in body
+    assert b"<nav" in body
+
+
+@pytest.mark.parametrize(
+    ("path", "content_type"),
+    [("/styles.css", "text/css"), ("/app.js", "text/javascript")],
+)
+def test_static_assets_are_cacheable(path, content_type):
+    status, headers, _ = get(path)
+
+    assert status == 200
+    assert headers.get_content_type() == content_type
+    assert "max-age" in (headers.get("Cache-Control") or "")
+
+
+def test_self_hosted_display_font_is_served_and_cacheable():
+    status, headers, body = get("/fonts/barlow-semi-condensed-latin-800-normal.woff2")
+
+    assert status == 200
+    assert headers.get_content_type() == "font/woff2"
+    assert "max-age" in (headers.get("Cache-Control") or "")
+    assert len(body) > 10_000
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/admin", "/admin/", "/admin.html", "/admin.js", "/api/admin/config", "/oauth2/start"],
+)
+def test_base_mode_does_not_expose_admin_or_auth_routes(path):
+    status, _, _ = get(path)
+    assert status == 404
 
 
 def test_manifest_json():

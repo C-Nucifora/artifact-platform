@@ -6,6 +6,7 @@ import pytest
 
 from discovery.config import Config
 from discovery.loop import run_once
+from discovery.mesh_config import ConfigStore
 from discovery.tailnet import Device, TailnetError
 
 SELF = Device(hostname="studio", dns_name="studio.tail1234.ts.net", ips=("100.64.0.1",))
@@ -25,6 +26,7 @@ def cfg(tmp_path):
         interval=120.0,
         fetch_timeout=1.0,
         socket_path="/tmp/sock",
+        mesh_config_path=tmp_path / "mesh.json",
     )
 
 
@@ -36,7 +38,7 @@ def test_run_once_writes_manifest_and_peers(cfg):
     run_once(
         cfg,
         get_status_fn=lambda socket_path: (SELF, [PEER]),
-        fetcher=lambda device, timeout: PEER_MANIFEST,
+        fetcher=lambda peer, socket, timeout: PEER_MANIFEST,
     )
 
     manifest = read_json(cfg.output_dir / "manifest.json")
@@ -48,28 +50,50 @@ def test_run_once_writes_manifest_and_peers(cfg):
     assert [p["dns_name"] for p in peers["peers"]] == ["pi.tail1234.ts.net"]
 
 
-def test_run_once_survives_tailnet_error(cfg):
+def test_run_once_survives_tailnet_error_without_erasing_last_good_peers(cfg):
+    store = ConfigStore(cfg.mesh_config_path)
+    run_once(
+        cfg,
+        get_status_fn=lambda socket_path: (SELF, [PEER]),
+        fetcher=lambda peer, socket, timeout: PEER_MANIFEST,
+        config_store=store,
+    )
+    last_good = read_json(cfg.output_dir / "peers.json")
+
     def failing_status(socket_path):
         raise TailnetError("tailscaled not up yet")
 
-    run_once(cfg, get_status_fn=failing_status, fetcher=lambda device, timeout: None)
+    run_once(
+        cfg,
+        get_status_fn=failing_status,
+        fetcher=lambda peer, socket, timeout: None,
+        config_store=store,
+    )
 
     manifest = read_json(cfg.output_dir / "manifest.json")
     assert manifest["device"] == {}
     assert [a["slug"] for a in manifest["artifacts"]] == ["demo"]
 
-    peers = read_json(cfg.output_dir / "peers.json")
-    assert peers["peers"] == []
+    assert read_json(cfg.output_dir / "peers.json") == last_good
+
+
+def test_run_once_first_tailnet_error_creates_empty_peer_document(cfg):
+    def failing_status(socket_path):
+        raise TailnetError("tailscaled not up yet")
+
+    run_once(cfg, get_status_fn=failing_status, fetcher=lambda peer, socket, timeout: None)
+
+    assert read_json(cfg.output_dir / "peers.json")["peers"] == []
 
 
 def test_run_once_creates_output_dir(cfg):
     assert not cfg.output_dir.exists()
-    run_once(cfg, get_status_fn=lambda s: (None, []), fetcher=lambda d, t: None)
+    run_once(cfg, get_status_fn=lambda s: (None, []), fetcher=lambda p, s, t: None)
     assert cfg.output_dir.is_dir()
 
 
 def test_run_once_leaves_no_temp_files(cfg):
-    run_once(cfg, get_status_fn=lambda s: (SELF, []), fetcher=lambda d, t: None)
+    run_once(cfg, get_status_fn=lambda s: (SELF, []), fetcher=lambda p, s, t: None)
     names = sorted(p.name for p in cfg.output_dir.iterdir())
     assert names == ["manifest.json", "peers.json"]
 
@@ -81,6 +105,8 @@ def test_config_defaults():
     assert cfg.interval == 120.0
     assert cfg.fetch_timeout == 5.0
     assert cfg.socket_path == "/var/run/tailscale/tailscaled.sock"
+    assert str(cfg.mesh_config_path) == "/config/mesh.json"
+    assert cfg.management_host == "127.0.0.1"
 
 
 def test_config_from_env():
@@ -91,6 +117,7 @@ def test_config_from_env():
             "DISCOVERY_INTERVAL": "30",
             "DISCOVERY_FETCH_TIMEOUT": "2.5",
             "TS_SOCKET": "/tmp/tailscaled.sock",
+            "MESH_CONFIG_PATH": "/somewhere/mesh.json",
         }
     )
     assert str(cfg.artifacts_dir) == "/somewhere/artifacts"
@@ -98,9 +125,27 @@ def test_config_from_env():
     assert cfg.interval == 30.0
     assert cfg.fetch_timeout == 2.5
     assert cfg.socket_path == "/tmp/tailscaled.sock"
+    assert str(cfg.mesh_config_path) == "/somewhere/mesh.json"
 
 
 def test_config_invalid_numbers_fall_back_to_defaults():
     cfg = Config.from_env({"DISCOVERY_INTERVAL": "soon", "DISCOVERY_FETCH_TIMEOUT": "-3"})
     assert cfg.interval == 120.0
     assert cfg.fetch_timeout == 5.0
+
+
+def test_run_once_does_not_fetch_an_excluded_peer(cfg):
+    cfg.mesh_config_path.write_text(
+        json.dumps({"version": 1, "excluded_peers": [PEER.dns_name]}), encoding="utf-8"
+    )
+    fetched = []
+
+    def fetcher(*args):
+        peer = args[0]
+        fetched.append(getattr(peer, "peer_id", peer.dns_name))
+        return PEER_MANIFEST
+
+    run_once(cfg, get_status_fn=lambda socket: (SELF, [PEER]), fetcher=fetcher)
+
+    assert fetched == []
+    assert read_json(cfg.output_dir / "peers.json")["peers"] == []

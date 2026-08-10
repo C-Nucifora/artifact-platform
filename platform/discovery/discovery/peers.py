@@ -4,7 +4,7 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from discovery.tailnet import Device
+from discovery.mesh import ResolvedPeer
 from discovery.util import utc_now_iso
 
 log = logging.getLogger(__name__)
@@ -49,9 +49,10 @@ def _sanitize_artifacts(raw: object) -> list[dict]:
 
 
 def build_peers(
-    devices: list[Device],
+    devices: list[ResolvedPeer],
     fetcher,
     timeout: float,
+    socket_path: str,
     deadline: float | None = None,
 ) -> dict:
     """Fetch each peer's manifest concurrently and keep the ones that respond.
@@ -64,11 +65,13 @@ def build_peers(
     if deadline is None:
         deadline = timeout + 5.0
 
-    results: list[tuple[Device, dict]] = []
+    results: list[tuple[ResolvedPeer, dict]] = []
     if devices:
         executor = ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(devices)))
         try:
-            futures = {executor.submit(fetcher, device, timeout): device for device in devices}
+            futures = {
+                executor.submit(fetcher, device, socket_path, timeout): device for device in devices
+            }
             try:
                 for future in as_completed(futures, timeout=deadline):
                     device = futures[future]
@@ -86,16 +89,24 @@ def build_peers(
             executor.shutdown(wait=False, cancel_futures=True)
 
     results.sort(key=lambda pair: pair[0].dns_name)
+    generated_at = utc_now_iso()
     return {
-        "version": 1,
+        "version": 2,
         "peers": [
             {
                 "hostname": device.hostname,
                 "dns_name": device.dns_name,
-                "url": f"https://{device.dns_name}",
-                "artifacts": _sanitize_artifacts(manifest.get("artifacts")),
+                "url": device.public_url,
+                "source": device.source,
+                "state": "online" if device.online else "manual",
+                "last_synced_at": generated_at,
+                "artifacts": [
+                    artifact
+                    for artifact in _sanitize_artifacts(manifest.get("artifacts"))
+                    if artifact["slug"] not in device.excluded_artifacts
+                ],
             }
             for device, manifest in results
         ],
-        "generated_at": utc_now_iso(),
+        "generated_at": generated_at,
     }

@@ -2,12 +2,12 @@
 
 import time
 
+from discovery.mesh import ResolvedPeer
 from discovery.peers import build_peers
-from discovery.tailnet import Device
 
 
 def dev(name):
-    return Device(hostname=name, dns_name=f"{name}.tail1234.ts.net", ips=(f"100.64.0.{1}",))
+    return resolved(name)
 
 
 def manifest_for(name):
@@ -25,65 +25,104 @@ def manifest_for(name):
     }
 
 
+def resolved(name, excluded_artifacts=()):
+    return ResolvedPeer(
+        peer_id=f"{name}.tail1234.ts.net",
+        hostname=name,
+        dns_name=f"{name}.tail1234.ts.net",
+        ssh_target=f"{name}.tail1234.ts.net",
+        public_url=f"https://{name}.example.com",
+        source="discovered",
+        online=True,
+        excluded_artifacts=excluded_artifacts,
+    )
+
+
+def test_version_two_peer_output_uses_resolved_public_fields():
+    doc = build_peers(
+        [resolved("pi")],
+        fetcher=lambda peer, socket, timeout: manifest_for("pi"),
+        timeout=1.0,
+        socket_path="/sock",
+    )
+
+    assert doc["version"] == 2
+    assert doc["peers"][0]["url"] == "https://pi.example.com"
+    assert doc["peers"][0]["source"] == "discovered"
+    assert doc["peers"][0]["state"] == "online"
+    assert "ssh_target" not in doc["peers"][0]
+
+
+def test_resolved_artifact_exclusions_are_not_published():
+    doc = build_peers(
+        [resolved("pi", excluded_artifacts=("pi-app",))],
+        fetcher=lambda peer, socket, timeout: manifest_for("pi"),
+        timeout=1.0,
+        socket_path="/sock",
+    )
+
+    assert doc["peers"][0]["artifacts"] == []
+
+
 def test_successful_peers_included():
     devices = [dev("pi"), dev("laptop")]
 
-    def fetcher(device, timeout):
+    def fetcher(device, socket, timeout):
         return manifest_for(device.hostname)
 
-    doc = build_peers(devices, fetcher=fetcher, timeout=1.0)
+    doc = build_peers(devices, fetcher=fetcher, timeout=1.0, socket_path="/sock")
     assert [p["hostname"] for p in doc["peers"]] == ["laptop", "pi"]  # sorted by dns_name
     assert doc["peers"][0]["dns_name"] == "laptop.tail1234.ts.net"
-    assert doc["peers"][0]["url"] == "https://laptop.tail1234.ts.net"
+    assert doc["peers"][0]["url"] == "https://laptop.example.com"
     assert doc["peers"][0]["artifacts"] == manifest_for("laptop")["artifacts"]
 
 
 def test_failed_peers_silently_skipped():
     devices = [dev("good"), dev("timeout"), dev("garbage")]
 
-    def fetcher(device, timeout):
+    def fetcher(device, socket, timeout):
         if device.hostname == "good":
             return manifest_for("good")
         return None  # fetch_manifest maps timeouts/404s/garbage to None
 
-    doc = build_peers(devices, fetcher=fetcher, timeout=1.0)
+    doc = build_peers(devices, fetcher=fetcher, timeout=1.0, socket_path="/sock")
     assert [p["hostname"] for p in doc["peers"]] == ["good"]
 
 
 def test_fetcher_exception_treated_as_failure():
     devices = [dev("good"), dev("explodes")]
 
-    def fetcher(device, timeout):
+    def fetcher(device, socket, timeout):
         if device.hostname == "explodes":
             raise RuntimeError("bug in fetcher")
         return manifest_for("good")
 
-    doc = build_peers(devices, fetcher=fetcher, timeout=1.0)
+    doc = build_peers(devices, fetcher=fetcher, timeout=1.0, socket_path="/sock")
     assert [p["hostname"] for p in doc["peers"]] == ["good"]
 
 
 def test_no_peers_yields_empty_list():
-    doc = build_peers([], fetcher=lambda d, t: None, timeout=1.0)
+    doc = build_peers([], fetcher=lambda p, s, t: None, timeout=1.0, socket_path="/sock")
     assert doc["peers"] == []
-    assert doc["version"] == 1
+    assert doc["version"] == 2
 
 
 def test_generated_at_is_iso8601_utc():
-    doc = build_peers([], fetcher=lambda d, t: None, timeout=1.0)
+    doc = build_peers([], fetcher=lambda p, s, t: None, timeout=1.0, socket_path="/sock")
     assert doc["generated_at"].endswith("+00:00") or doc["generated_at"].endswith("Z")
 
 
 def test_hung_fetcher_does_not_hang_build_peers():
     devices = [dev("fast"), dev("stuck")]
 
-    def fetcher(device, timeout):
+    def fetcher(device, socket, timeout):
         if device.hostname == "stuck":
             time.sleep(10)  # simulates a fetch that ignores its timeout
             return manifest_for("stuck")
         return manifest_for("fast")
 
     start = time.monotonic()
-    doc = build_peers(devices, fetcher=fetcher, timeout=0.1, deadline=0.5)
+    doc = build_peers(devices, fetcher=fetcher, timeout=0.1, socket_path="/sock", deadline=0.5)
     elapsed = time.monotonic() - start
     assert elapsed < 5.0
     assert [p["hostname"] for p in doc["peers"]] == ["fast"]
@@ -91,15 +130,21 @@ def test_hung_fetcher_does_not_hang_build_peers():
 
 def test_artifacts_missing_from_manifest_defaults_to_empty():
     # build_peers trusts fetch_manifest's validation, but degrade gracefully anyway
-    doc = build_peers([dev("odd")], fetcher=lambda d, t: {"version": 1}, timeout=1.0)
+    doc = build_peers(
+        [dev("odd")],
+        fetcher=lambda p, s, t: {"version": 1},
+        timeout=1.0,
+        socket_path="/sock",
+    )
     assert doc["peers"][0]["artifacts"] == []
 
 
 def peer_serving(artifacts):
     return build_peers(
         [dev("hostile")],
-        fetcher=lambda d, t: {"version": 1, "artifacts": artifacts},
+        fetcher=lambda p, s, t: {"version": 1, "artifacts": artifacts},
         timeout=1.0,
+        socket_path="/sock",
     )["peers"][0]["artifacts"]
 
 

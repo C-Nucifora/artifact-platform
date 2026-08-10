@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d12">
+  <title>Mesh configuration — Artifact Platform</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body class="admin-body">
+  <a class="skip-link" href="#admin-main">Skip to configuration</a>
+  <header class="topbar">
+    <a class="wordmark" href="/" aria-label="Artifact Platform home">
+      <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>Artifact Platform</span>
+    </a>
+    <nav class="utility-nav" aria-label="Administration navigation">
+      <span class="connection-state"><span class="status-light" aria-hidden="true"></span>SSO verified</span>
+      <a class="utility-link" href="/">Public catalog</a>
+    </nav>
+  </header>
+
+  <main id="admin-main" class="admin-main">
+    <header class="admin-hero">
+      <div>
+        <h1>Mesh configuration</h1>
+        <p>Shape the automatic mesh without changing its default: every eligible node participates until an operator says otherwise.</p>
+      </div>
+      <div class="admin-state" aria-live="polite">
+        <span id="save-state" class="save-state">Loading configuration</span>
+        <span id="revision-label" class="revision-label">Revision —</span>
+      </div>
+    </header>
+
+    <form id="config-form" class="config-form">
+      <section class="admin-section" aria-labelledby="peer-config-heading">
+        <header class="section-heading admin-section-heading">
+          <h2 id="peer-config-heading">Peers and endpoints</h2>
+          <p>Exclude discovered nodes, override connection details, or curate artifact visibility.</p>
+        </header>
+        <div>
+          <div id="peer-editor" class="peer-editor" aria-live="polite"></div>
+
+          <div class="manual-peer-adder">
+            <label for="manual-peer-id">Manual peer identifier</label>
+            <div>
+              <input id="manual-peer-id" name="manual-peer-id" autocomplete="off" placeholder="trackside">
+              <button class="secondary-button" type="button" id="add-manual-peer">Add manual peer</button>
+            </div>
+            <p id="manual-peer-error" class="field-error" role="alert"></p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="admin-actions">
+        <p>Changes are validated, revision-checked, and written atomically.</p>
+        <div>
+          <button class="secondary-button" type="button" id="discover-now">Run discovery</button>
+          <button class="primary-button" type="submit">Save configuration</button>
+        </div>
+      </footer>
+    </form>
+  </main>
+</body>
+</html>

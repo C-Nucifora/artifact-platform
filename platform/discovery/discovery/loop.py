@@ -5,9 +5,11 @@ import signal
 import threading
 
 from discovery.config import Config
-from discovery.fetch import fetch_manifest
 from discovery.manifest import build_manifest
+from discovery.mesh import resolve_peers
+from discovery.mesh_config import ConfigStore
 from discovery.peers import build_peers
+from discovery.ssh_fetch import fetch_manifest_ssh
 from discovery.tailnet import Device, TailnetError, get_status
 from discovery.util import write_json_atomic
 
@@ -24,19 +26,26 @@ def _describe(device: Device | None) -> dict:
     }
 
 
-def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest) -> None:
+def run_once(
+    cfg: Config,
+    get_status_fn=None,
+    fetcher=fetch_manifest_ssh,
+    config_store: ConfigStore | None = None,
+) -> list[dict]:
     """One cycle: rebuild manifest.json, then aggregate reachable peers into peers.json.
 
-    A tailscaled that isn't up yet is survivable: the manifest is still written
-    (with empty device info) and peers.json becomes an empty list.
+    A tailscaled that isn't up yet is survivable: the local manifest is still
+    written, while an existing last-good peer catalog is retained.
     """
     if get_status_fn is None:
         get_status_fn = lambda socket_path: get_status(socket_path)  # noqa: E731
 
     self_device, peer_devices = None, []
+    status_available = True
     try:
         self_device, peer_devices = get_status_fn(cfg.socket_path)
     except TailnetError as exc:
+        status_available = False
         log.warning("tailnet status unavailable: %s", exc)
 
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
@@ -44,8 +53,21 @@ def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest) -> None:
     manifest = build_manifest(cfg.artifacts_dir, device=_describe(self_device))
     write_json_atomic(cfg.output_dir / "manifest.json", manifest)
 
-    peers_doc = build_peers(peer_devices, fetcher=fetcher, timeout=cfg.fetch_timeout)
-    write_json_atomic(cfg.output_dir / "peers.json", peers_doc)
+    store = config_store or ConfigStore(cfg.mesh_config_path)
+    mesh_config = store.load().config
+    peers_path = cfg.output_dir / "peers.json"
+    if not status_available and peers_path.exists():
+        log.info("cycle degraded: retained last-good peer catalog")
+        return []
+
+    resolved_peers = resolve_peers(peer_devices, mesh_config)
+    peers_doc = build_peers(
+        resolved_peers,
+        fetcher=fetcher,
+        timeout=cfg.fetch_timeout,
+        socket_path=cfg.socket_path,
+    )
+    write_json_atomic(peers_path, peers_doc)
 
     log.info(
         "cycle complete: %d artifact(s), %d/%d peer(s) responded",
@@ -53,10 +75,15 @@ def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest) -> None:
         len(peers_doc["peers"]),
         len(peer_devices),
     )
+    return [
+        {"hostname": peer.hostname, "dns_name": peer.dns_name, "online": True}
+        for peer in peer_devices
+    ]
 
 
 def run_forever(cfg: Config) -> None:
     stop = threading.Event()
+    config_store = ConfigStore(cfg.mesh_config_path)
 
     def handle_signal(signum, frame):
         log.info("received signal %d, shutting down", signum)
@@ -75,7 +102,7 @@ def run_forever(cfg: Config) -> None:
     )
     while not stop.is_set():
         try:
-            run_once(cfg)
+            run_once(cfg, config_store=config_store)
         except Exception:
             log.exception("discovery cycle failed; will retry next interval")
         stop.wait(cfg.interval)
