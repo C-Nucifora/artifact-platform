@@ -12,6 +12,9 @@ services:
     environment:
       DISCOVERY_INTERVAL: 3600
       MANAGEMENT_API_TOKEN: test-management-token
+      # Unlike production, the test Caddy is a separate container and reaches
+      # this service over an isolated, un-published Docker network.
+      MANAGEMENT_HOST: 0.0.0.0
     volumes:
       - ./tests/integration/fixtures/artifacts:/artifacts:ro
       - ./tests/integration/fixtures/config:/config
