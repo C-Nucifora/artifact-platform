@@ -5,7 +5,7 @@ import os
 import sys
 
 from discovery.config import Config
-from discovery.loop import run_forever
+from discovery.service import run_service
 
 
 def main() -> int:
@@ -14,7 +14,7 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         stream=sys.stdout,
     )
-    run_forever(Config.from_env(os.environ))
+    run_service(Config.from_env(os.environ))
     return 0
 
 

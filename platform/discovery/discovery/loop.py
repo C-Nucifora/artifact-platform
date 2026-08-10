@@ -26,7 +26,7 @@ def _describe(device: Device | None) -> dict:
     }
 
 
-def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest_ssh) -> None:
+def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest_ssh) -> list[dict]:
     """One cycle: rebuild manifest.json, then aggregate reachable peers into peers.json.
 
     A tailscaled that isn't up yet is survivable: the manifest is still written
@@ -62,6 +62,10 @@ def run_once(cfg: Config, get_status_fn=None, fetcher=fetch_manifest_ssh) -> Non
         len(peers_doc["peers"]),
         len(peer_devices),
     )
+    return [
+        {"hostname": peer.hostname, "dns_name": peer.dns_name, "online": True}
+        for peer in peer_devices
+    ]
 
 
 def run_forever(cfg: Config) -> None:

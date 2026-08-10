@@ -132,7 +132,8 @@ def _peer_rule(raw: object, label: str) -> PeerRule:
     return rule
 
 
-def _as_dict(config: MeshConfig) -> dict:
+def mesh_config_to_dict(config: MeshConfig) -> dict:
+    """Return the normalized public representation used by file and API callers."""
     peers = {}
     for peer_id, rule in sorted(config.peers.items()):
         entry: dict[str, object] = {}
@@ -153,7 +154,7 @@ def _as_dict(config: MeshConfig) -> dict:
 
 
 def _document(config: MeshConfig) -> ConfigDocument:
-    canonical = json.dumps(_as_dict(config), sort_keys=True, separators=(",", ":"))
+    canonical = json.dumps(mesh_config_to_dict(config), sort_keys=True, separators=(",", ":"))
     return ConfigDocument(config=config, revision=hashlib.sha256(canonical.encode()).hexdigest())
 
 
@@ -207,7 +208,7 @@ def save_mesh_config(
             raise RevisionConflict("mesh configuration changed; reload before saving")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(_as_dict(document.config), indent=2, sort_keys=True) + "\n"
+    payload = json.dumps(mesh_config_to_dict(document.config), indent=2, sort_keys=True) + "\n"
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
