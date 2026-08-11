@@ -42,4 +42,3 @@ import /etc/caddy/snippets/*.caddy
 		file_server
 	}
 }
-

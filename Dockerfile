@@ -26,4 +26,3 @@ EXPOSE 8080
 VOLUME ["/artifacts", "/config", "/generated"]
 
 ENTRYPOINT ["/sbin/tini", "-g", "--", "/usr/local/bin/artifact-platform"]
-
