@@ -1,5 +1,9 @@
 .git
 .git/**
+.env
+.env.*
+artifacts
+data
 node_modules
 platform/discovery/.venv
 .venv

@@ -1,4 +1,5 @@
 import json
+import subprocess
 import urllib.error
 import urllib.request
 
@@ -29,3 +30,23 @@ def test_single_container_keeps_admin_hidden_without_sso():
     for path in ("/admin", "/admin.html", "/api/admin/config", "/oauth2/start"):
         status, _, _ = request(path)
         assert status == 404
+
+
+def test_single_container_runs_as_an_unprivileged_user():
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "docker-compose.single.test.yml",
+            "exec",
+            "-T",
+            "artifact-platform",
+            "id",
+            "-u",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() != "0"

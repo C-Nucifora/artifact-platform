@@ -44,7 +44,8 @@ integration-single:
 	cleanup() { status=$$?; if [ $$status -ne 0 ]; then docker compose -f docker-compose.single.test.yml logs --no-color; fi; docker compose -f docker-compose.single.test.yml down -v; exit $$status; }; \
 	trap cleanup EXIT; \
 	docker compose -f docker-compose.single.test.yml up -d --wait; \
-	uv run --project platform/discovery --group dev pytest tests/integration/test_single_container.py
+	uv run --project platform/discovery --group dev pytest tests/integration/test_single_container.py; \
+	uv run --project platform/discovery --group dev pytest tests/integration/test_single_container_lifecycle.py
 
 integration-sso:
 	@set -eu; \
