@@ -1,0 +1,19 @@
+services:
+  artifact-platform:
+    build: .
+    environment:
+      DISCOVERY_INTERVAL: "1"
+      DISCOVERY_FETCH_TIMEOUT: "1"
+      DISCOVERY_ARTIFACTS_DIR: /artifacts
+      DISCOVERY_OUTPUT_DIR: /generated
+      MESH_CONFIG_PATH: /config/mesh.json
+    ports:
+      - "127.0.0.1:18767:8080"
+    volumes:
+      - ./artifacts:/artifacts:ro
+      - ./config:/config:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/manifest.json"]
+      interval: 2s
+      timeout: 2s
+      retries: 20

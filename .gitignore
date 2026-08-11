@@ -23,3 +23,5 @@ playwright-report/
 
 # macOS
 .DS_Store
+# Finder/iCloud conflict copies such as "mesh 2.py" are not source files.
+* 2.py
