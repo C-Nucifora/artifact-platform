@@ -1,4 +1,4 @@
-.PHONY: lint unit build validate-sso integration integration-sso ui check
+.PHONY: lint unit build validate-sso integration integration-public integration-single integration-sso ui check
 
 lint:
 	git diff --check 4b825dc642cb6eb9a060e54bf8d69288fbee4904
@@ -11,6 +11,8 @@ unit:
 build: validate-sso
 	docker compose config -q
 	docker compose build
+	docker compose -f docker-compose.single.test.yml config -q
+	docker compose -f docker-compose.single.test.yml build
 
 validate-sso:
 	OIDC_COOKIE_SECRET=abcdefghijklmnopqrstuvwxyz123456 \
@@ -28,12 +30,21 @@ validate-sso:
 		--config=/etc/oauth2-proxy/oauth2-proxy.cfg \
 		--allowed-group=artifact-platform-admins --config-test
 
-integration:
+integration: integration-public integration-single
+
+integration-public:
 	@set -eu; \
 	cleanup() { status=$$?; if [ $$status -ne 0 ]; then docker compose -f docker-compose.test.yml logs --no-color; fi; docker compose -f docker-compose.test.yml down -v; exit $$status; }; \
 	trap cleanup EXIT; \
 	docker compose -f docker-compose.test.yml up -d --wait; \
 	uv run --project platform/discovery --group dev pytest tests/integration/test_http.py
+
+integration-single:
+	@set -eu; \
+	cleanup() { status=$$?; if [ $$status -ne 0 ]; then docker compose -f docker-compose.single.test.yml logs --no-color; fi; docker compose -f docker-compose.single.test.yml down -v; exit $$status; }; \
+	trap cleanup EXIT; \
+	docker compose -f docker-compose.single.test.yml up -d --wait; \
+	uv run --project platform/discovery --group dev pytest tests/integration/test_single_container.py
 
 integration-sso:
 	@set -eu; \

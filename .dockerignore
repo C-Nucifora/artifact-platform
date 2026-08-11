@@ -1,0 +1,12 @@
+.git
+.git/**
+node_modules
+platform/discovery/.venv
+.venv
+.impeccable
+playwright-report
+test-results
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/* 2.py
