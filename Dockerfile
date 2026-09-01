@@ -1,6 +1,6 @@
 FROM tailscale/tailscale:stable AS tailscale-cli
 
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 RUN apk add --no-cache ca-certificates caddy tini \
     && addgroup -S -g 10001 artifact \
