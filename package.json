@@ -6,6 +6,6 @@
   },
   "devDependencies": {
     "@fontsource/barlow-semi-condensed": "^5.3.0",
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.63.0"
   }
 }
